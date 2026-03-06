@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Risk Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background-color: #0f172a;
+            color: #f1f5f9;
+        }
+
+        .navbar {
+            background-color: #1e293b;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .navbar h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #f8fafc;
+        }
+
+        .nav-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .dropdown {
+            background: #0f172a;
+            color: #e2e8f0;
+            border: 1px solid #475569;
+            padding: 8px 12px;
+            border-radius: 6px;
+            outline: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            color: white;
+            cursor: pointer;
+            border: none;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .btn-analytics {
+            background: #10b981;
+        }
+
+        .btn-analytics:hover {
+            background: #059669;
+        }
+
+        .btn-run {
+            background: #38bdf8;
+            color: #0f172a;
+        }
+
+        .btn-run:hover {
+            background: #0284c7;
+            color: white;
+        }
+
+        .btn-logout {
+            background: #ef4444;
+        }
+
+        .btn-logout:hover {
+            background: #b91c1c;
+        }
+
+        .container {
+            padding: 30px;
+            max-width: 1400px;
+            margin: auto;
+        }
+
+        /* Summary Stats Row */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            text-align: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+
+        .stat-card h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-card .val {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .val.safe {
+            color: #10b981;
+        }
+
+        .val.watch {
+            color: #fbbf24;
+        }
+
+        .val.high {
+            color: #f43f5e;
+        }
+
+        .val.anomaly {
+            color: #8b5cf6;
+        }
+
+        /* Tables & Lists */
+        .section-block {
+            background: #1e293b;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            margin-bottom: 30px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+
+        .section-header {
+            padding: 15px 20px;
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            border-bottom: 1px solid #334155;
+        }
+
+        .header-anomaly {
+            background: rgba(139, 92, 246, 0.15);
+            color: #c4b5fd;
+            border-bottom-color: rgba(139, 92, 246, 0.3);
+        }
+
+        .header-high {
+            background: rgba(244, 63, 94, 0.15);
+            color: #fda4af;
+            border-bottom-color: rgba(244, 63, 94, 0.3);
+        }
+
+        .header-watch {
+            background: rgba(251, 191, 36, 0.15);
+            color: #fde68a;
+            border-bottom-color: rgba(251, 191, 36, 0.3);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #0f172a;
+            color: #94a3b8;
+            font-size: 12px;
+            text-transform: uppercase;
+            text-align: left;
+            padding: 12px 20px;
+            font-weight: 600;
+            border-bottom: 1px solid #334155;
+        }
+
+        td {
+            padding: 15px 20px;
+            border-bottom: 1px solid #334155;
+            color: #cbd5e1;
+            font-size: 14px;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        a.student-link {
+            color: #38bdf8;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        a.student-link:hover {
+            text-decoration: underline;
+        }
+
+        .action-text {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .action-anomaly {
+            color: #a78bfa;
+        }
+
+        .action-high {
+            color: #fb7185;
+        }
+
+        .action-watch {
+            color: #fcd34d;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .badge-anomaly {
+            background: #8b5cf6;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="navbar">
+        <h2>Admin Risk Dashboard</h2>
+        <div class="nav-controls">
+
+            <!-- Section Filter -->
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <label for="sectionFilter" style="font-size: 13px; color: #94a3b8;">Section:</label>
+                <select id="sectionFilter" class="dropdown" onchange="window.location.href='?section=' + this.value">
+                    <option value="All" {% if not selected_section %}selected{% endif %}>All Sections</option>
+                    {% for sec in sections %}
+                    <option value="{{ sec }}" {% if selected_section==sec %}selected{% endif %}>{{ sec }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <a href="{{ url_for('analytics') }}" class="btn btn-analytics">View Analytics</a>
+
+            <form action="{{ url_for('run_pipeline') }}" method="POST" style="margin: 0;">
+                <button type="submit" class="btn btn-run" onclick="return confirm('Trigger nightly ML Pipeline?');">Run
+                    ML Pipeline</button>
+            </form>
+
+            <a href="{{ url_for('logout') }}" class="btn btn-logout">Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+
+        <!-- Top Stats Row -->
+        <div class="summary-grid">
+            <div class="stat-card">
+                <h4>Safe Students</h4>
+                <div class="val safe">{{ safe_count }}</div>
+            </div>
+            <div class="stat-card">
+                <h4>Watchlist</h4>
+                <div class="val watch">{{ watchlist|length }}</div>
+            </div>
+            <div class="stat-card">
+                <h4>High Risk</h4>
+                <div class="val high">{{ high_risk|length }}</div>
+            </div>
+            <div class="stat-card">
+                <h4>Anomalies</h4>
+                <div class="val anomaly">{{ anomalies|length }}</div>
+            </div>
+        </div>
+
+        <!-- Anomalies Block -->
+        {% if anomalies|length > 0 %}
+        <div class="section-block">
+            <div class="section-header header-anomaly">
+                🚨 AI Detected Anomalies (Requires Immediate Review)
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Student</th>
+                        <th>Trend Shift</th>
+                        <th>Notified</th>
+                        <th>Recommendation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in anomalies %}
+                    <tr>
+                        <td>
+                            <a href="/student/{{ student.StudentID }}" class="student-link">{{ student.StudentID }}</a>
+                            <br><span class="badge badge-anomaly">Anomaly</span>
+                        </td>
+                        <td>{{ student.Trend }}</td>
+                        <td>{{ student.Notified }}</td>
+                        <td class="action-text action-anomaly">{{ student.Action }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <!-- High Risk Block -->
+        {% if high_risk|length > 0 %}
+        <div class="section-block">
+            <div class="section-header header-high">
+                ⚠️ High Risk Students (Critical Intervention Required)
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Student</th>
+                        <th>Attendance</th>
+                        <th>Trend</th>
+                        <th>Drop-out Prob.</th>
+                        <th>Notified</th>
+                        <th>Recommendation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in high_risk %}
+                    <tr>
+                        <td><a href="/student/{{ student.StudentID }}" class="student-link">{{ student.StudentID }}</a>
+                        </td>
+                        <td>{{ student.Semester_Attendance }}</td>
+                        <td>{{ student.Trend }}</td>
+                        <td>{{ student.Probability }}</td>
+                        <td>{{ student.Notified }}</td>
+                        <td class="action-text action-high">{{ student.Action }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <!-- Watchlist Block -->
+        {% if watchlist|length > 0 %}
+        <div class="section-block">
+            <div class="section-header header-watch">
+                👀 Watchlist (Declining Trends)
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Student</th>
+                        <th>Attendance</th>
+                        <th>Trend</th>
+                        <th>Drop-out Prob.</th>
+                        <th>Recommendation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in watchlist %}
+                    <tr>
+                        <td><a href="/student/{{ student.StudentID }}" class="student-link">{{ student.StudentID }}</a>
+                        </td>
+                        <td>{{ student.Semester_Attendance }}</td>
+                        <td>{{ student.Trend }}</td>
+                        <td>{{ student.Probability }}</td>
+                        <td class="action-text action-watch">{{ student.Action }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+    </div>
+
+</body>
+
+</html>

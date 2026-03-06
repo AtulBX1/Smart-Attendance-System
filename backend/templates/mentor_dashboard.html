@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Mentor Dashboard</title>
+    <style>
+        body {
+            font-family: Arial;
+            margin: 30px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        th,
+        td {
+            border: 1px solid #ccc;
+            padding: 12px 8px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #f4f4f4;
+            color: #444;
+        }
+
+        .high {
+            background-color: #ffdddd;
+        }
+
+        .watch {
+            background-color: #fff3cd;
+        }
+
+        .safe {
+            background-color: #d4edda;
+        }
+
+        .anomaly {
+            background-color: #f8d7da;
+            border: 2px solid #dc3545;
+        }
+
+        .badge {
+            background: #dc3545;
+            color: white;
+            padding: 3px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .nudge {
+            font-weight: bold;
+            color: #e02424;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .btn-logout {
+            background: #6c757d;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 4px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h2 style="margin:0;">Mentor Dashboard: {{ mentor_id }}</h2>
+        <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+
+    <table>
+        <tr>
+            <th>StudentID</th>
+            <th>Semester Attendance</th>
+            <th>Trend</th>
+            <th>ML Probability</th>
+            <th>Status</th>
+            <th>Automated Nudge Sent?</th>
+            <th>Recommended Action</th>
+        </tr>
+
+        {% for s in students %}
+        <tr class="{% if s.Anomaly %}anomaly
+           {% elif s.Risk_Level == 'High Risk' %}high
+           {% elif s.Risk_Level == 'Watchlist' %}watch
+           {% else %}safe{% endif %}">
+            <td>
+                <strong>{{ s.StudentID }}</strong>
+                {% if s.Anomaly %}<br><span class="badge">ANOMALY</span>{% endif %}
+            </td>
+            <td>{{ s.Semester_Attendance }}</td>
+            <td>{{ s.Trend }}</td>
+            <td>{{ s.Probability }}</td>
+            <td>{{ s.Risk_Level }}</td>
+            <td class="{% if s.Nudged %}nudge{% endif %}">
+                {% if s.Nudged %}YES (Intervention Required){% else %}No{% endif %}
+            </td>
+            <td><strong>{{ s.Action }}</strong></td>
+        </tr>
+        {% endfor %}
+
+    </table>
+
+</body>
+
+</html>

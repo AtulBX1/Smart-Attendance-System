@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Faculty Attendance Portal</title>
+    <style>
+        /* Modern Dark Theme Inspired by UMS Reference */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background-color: #0f172a;
+            color: #f1f5f9;
+        }
+
+        .navbar {
+            background-color: #1e293b;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .navbar h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #38bdf8;
+        }
+
+        .btn-logout {
+            background: #ef4444;
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .container {
+            padding: 30px;
+            max-width: 1200px;
+            margin: auto;
+        }
+
+        /* Grid for Sections */
+        .section-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background-color: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 25px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            border-color: #38bdf8;
+        }
+
+        .card h3 {
+            margin: 0;
+            font-size: 24px;
+            color: #fff;
+        }
+
+        .card p {
+            color: #94a3b8;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .card.active {
+            border: 2px solid #0ea5e9;
+            background-color: #0f172a;
+        }
+
+        /* Attendance List Styles */
+        .attendance-form {
+            display: none;
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+        }
+
+        .attendance-form.active {
+            display: block;
+        }
+
+        .list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .student-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            background-color: #0f172a;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+        }
+
+        .student-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .student-name {
+            font-weight: bold;
+            font-size: 16px;
+            color: #fff;
+        }
+
+        .student-id {
+            font-size: 13px;
+            color: #94a3b8;
+        }
+
+        /* Radio Buttons */
+        .radio-group {
+            display: flex;
+            gap: 15px;
+        }
+
+        .radio-group label {
+            cursor: pointer;
+            padding: 6px 15px;
+            border-radius: 20px;
+            border: 1px solid #475569;
+            font-size: 14px;
+            color: #cbd5e1;
+            transition: all 0.2s;
+        }
+
+        .radio-group input[type="radio"] {
+            display: none;
+        }
+
+        .radio-group input[type="radio"]:checked+label.p-label {
+            background-color: #10b981;
+            color: white;
+            border-color: #10b981;
+        }
+
+        .radio-group input[type="radio"]:checked+label.a-label {
+            background-color: #ef4444;
+            color: white;
+            border-color: #ef4444;
+        }
+
+        .btn-submit {
+            background-color: #0ea5e9;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            width: 100%;
+            margin-top: 20px;
+            transition: background 0.2s;
+        }
+
+        .btn-submit:hover {
+            background-color: #0284c7;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        .alert-success {
+            background-color: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+            border: 1px solid #10b981;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal {
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            width: 400px;
+            max-width: 90%;
+            text-align: left;
+        }
+
+        .modal h3 {
+            margin-top: 0;
+            color: #fff;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 15px;
+        }
+
+        .modal ul {
+            list-style: none;
+            padding: 0;
+            max-height: 150px;
+            overflow-y: auto;
+            color: #ef4444;
+            font-size: 14px;
+            background: #0f172a;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+        }
+
+        .modal ul li {
+            padding: 5px 0;
+            border-bottom: 1px solid #1e293b;
+        }
+
+        .modal ul li:last-child {
+            border-bottom: none;
+        }
+
+        .modal-input-group {
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-input-group label {
+            font-size: 13px;
+            color: #94a3b8;
+            margin-bottom: 5px;
+        }
+
+        .modal-input-group input {
+            background: #0f172a;
+            color: #fff;
+            border: 1px solid #475569;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        .btn-cancel {
+            background: transparent;
+            border: 1px solid #475569;
+            color: #94a3b8;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .btn-cancel:hover {
+            background: #334155;
+            color: #fff;
+        }
+
+        .btn-confirm {
+            background: #10b981;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .btn-confirm:hover {
+            background: #059669;
+        }
+
+        .error-msg {
+            color: #ef4444;
+            font-size: 13px;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="navbar">
+        <h2>Smart Attendance - Faculty Portal</h2>
+        <div style="display:flex; align-items:center;">
+            <span style="margin-right:20px; color:#94a3b8;">Logged in as: <strong>{{ faculty_id }}</strong></span>
+            <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+        {% if message %}
+        <div class="alert alert-success">{{ message }}</div>
+        {% endif %}
+
+        <h3 style="color:#e2e8f0; margin-bottom:20px;">Your Allotted Assigned Sections:</h3>
+
+        <div class="section-grid">
+            {% for cls in classes %}
+            <div class="card" onclick="loadSection('{{ cls.section }}')">
+                <h3>Section {{ cls.section }}</h3>
+                <p>{{ cls.time_slot }}</p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Hidden block that shows when a section is clicked -->
+        {% for cls in classes %}
+        <div id="form-{{ cls.section }}" class="attendance-form">
+            <div class="list-header">
+                <h3>Marking Attendance: Section {{ cls.section }}</h3>
+                <span style="color:#94a3b8; font-size:14px;">Date: <input type="date" id="date-{{ cls.section }}"
+                        value=""
+                        style="background:#0f172a; color:#fff; border:1px solid #475569; padding:5px; border-radius:4px;"
+                        readonly></span>
+            </div>
+
+            <form method="POST" action="{{ url_for('faculty_dashboard') }}">
+                <input type="hidden" name="section" value="{{ cls.section }}">
+                <input type="hidden" name="date" class="date-input-hidden" value="">
+
+                {% for student in all_students if student.Section == cls.section %}
+                <div class="student-row">
+                    <div class="student-info">
+                        <span class="student-name">{{ student.Student_Name }}</span>
+                        <span class="student-id">{{ student.StudentID }}</span>
+                    </div>
+                    <div class="radio-group">
+                        <input type="radio" id="p-{{ student.StudentID }}" name="status_{{ student.StudentID }}"
+                            value="1" checked>
+                        <label for="p-{{ student.StudentID }}" class="p-label">Present</label>
+
+                        <input type="radio" id="a-{{ student.StudentID }}" name="status_{{ student.StudentID }}"
+                            value="0">
+                        <label for="a-{{ student.StudentID }}" class="a-label">Absent</label>
+                    </div>
+                </div>
+                {% endfor %}
+
+                <button type="button" class="btn-submit" onclick="openConfirmationModal('{{ cls.section }}')">Submit
+                    Bulk Attendance for Section {{ cls.section }}</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal" class="modal-overlay">
+        <div class="modal">
+            <h3>Confirm Attendance</h3>
+            <p style="font-size: 14px; color: #94a3b8;">Please verify the absentees by calling their names and confirm
+                the counts.</p>
+
+            <div
+                style="background: #0f172a; padding: 12px; border-radius: 8px; border: 1px solid #334155; margin: 15px 0; text-align: center;">
+                <span style="color: #94a3b8; font-size: 15px;">Total Students in Section: </span>
+                <strong id="total-students-count" style="color: #38bdf8; font-size: 20px;">0</strong>
+            </div>
+
+            <label style="font-size: 13px; color: #94a3b8; margin-top: 10px; display: block;">List of Absentees:</label>
+            <ul id="absentee-list"></ul>
+
+            <div class="modal-input-group">
+                <label for="confirm-absent">Total Absentees:</label>
+                <input type="number" id="confirm-absent" placeholder="Enter total absentees">
+            </div>
+
+            <div class="modal-input-group">
+                <label for="confirm-present">Total Present:</label>
+                <input type="number" id="confirm-present" placeholder="Enter total present">
+            </div>
+
+            <div id="modal-error" class="error-msg">Counts do not match actual selection. Please correct.</div>
+
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeModal()">Review Again</button>
+                <button class="btn-confirm" onclick="confirmSubmission()">Confirm & Submit</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Set today's date
+        const today = new Date().toISOString().split('T')[0];
+        document.querySelectorAll('input[type="date"]').forEach(el => el.value = today);
+        document.querySelectorAll('.date-input-hidden').forEach(el => el.value = today);
+
+        function loadSection(sectionName) {
+            // Hide all forms
+            document.querySelectorAll('.attendance-form').forEach(el => el.classList.remove('active'));
+            // Show target form
+            document.getElementById('form-' + sectionName).classList.add('active');
+
+            // Visual indicator on cards
+            document.querySelectorAll('.card').forEach(el => el.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+        }
+
+        let currentFormToSubmit = null;
+        let actualPresentCount = 0;
+        let actualAbsentCount = 0;
+
+        function openConfirmationModal(section) {
+            const form = document.querySelector(`#form-${section} form`);
+            currentFormToSubmit = form;
+
+            const absenteeListEl = document.getElementById('absentee-list');
+            absenteeListEl.innerHTML = '';
+
+            actualPresentCount = 0;
+            actualAbsentCount = 0;
+
+            const studentRows = form.querySelectorAll('.student-row');
+
+            // Set total students
+            const totalStudents = studentRows.length;
+            document.getElementById('total-students-count').innerText = totalStudents;
+
+            studentRows.forEach(row => {
+                // Determine if absent based on a radio selection. Need to query by value='0'
+                const absentInput = row.querySelector('input[type="radio"][value="0"]');
+                const isAbsent = absentInput && absentInput.checked;
+                const studentName = row.querySelector('.student-name').innerText;
+                const studentId = row.querySelector('.student-id').innerText;
+
+                if (isAbsent) {
+                    actualAbsentCount++;
+                    const li = document.createElement('li');
+                    li.innerText = `${studentName} (${studentId})`;
+                    absenteeListEl.appendChild(li);
+                } else {
+                    actualPresentCount++;
+                }
+            });
+
+            if (actualAbsentCount === 0) {
+                const li = document.createElement('li');
+                li.innerText = 'No absentees (100% attendance)';
+                li.style.color = '#10b981';
+                absenteeListEl.appendChild(li);
+            }
+
+            document.getElementById('confirm-absent').value = '';
+            document.getElementById('confirm-present').value = '';
+            document.getElementById('modal-error').style.display = 'none';
+
+            document.getElementById('confirmation-modal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('confirmation-modal').style.display = 'none';
+            currentFormToSubmit = null;
+        }
+
+        function confirmSubmission() {
+            const enteredAbsent = parseInt(document.getElementById('confirm-absent').value);
+            const enteredPresent = parseInt(document.getElementById('confirm-present').value);
+            const errorEl = document.getElementById('modal-error');
+
+            if (enteredAbsent === actualAbsentCount && enteredPresent === actualPresentCount) {
+                errorEl.style.display = 'none';
+                if (currentFormToSubmit) {
+                    currentFormToSubmit.submit();
+                }
+            } else {
+                errorEl.style.display = 'block';
+            }
+        }
+    </script>
+
+</body>
+
+</html>

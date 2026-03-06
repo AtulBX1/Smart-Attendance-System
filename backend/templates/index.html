@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smart Attendance Intelligence System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f6f9;
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        h2 {
+            color: #333;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            width: 400px;
+            margin: auto;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        input {
+            padding: 10px;
+            width: 80%;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .result {
+            margin-top: 20px;
+        }
+
+        .safe {
+            color: green;
+            font-weight: bold;
+        }
+
+        .risk {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Attendance Risk Dashboard</h2>
+
+    <form action="/predict" method="post">
+        <input type="text" name="StudentID" placeholder="Enter Student ID (S0001)" required>
+        <br>
+        <button type="submit">Check Risk</button>
+    </form>
+
+    {% if error %}
+        <p style="color:red;">{{ error }}</p>
+    {% endif %}
+
+    {% if prediction %}
+<div class="result">
+    <h3 class="{{ 'risk' if prediction == 'At Risk' else 'safe' }}">
+        {{ prediction }}
+    </h3>
+
+    <p>Risk Probability: {{ probability }}</p>
+    <p>Rolling Attendance: {{ rolling }}</p>
+    <p>Absence Streak: {{ streak }}</p>
+    <p>Semester Attendance: {{ semester }}</p>
+
+    {% if anomaly %}
+        <p style="color: orange; font-weight: bold;">
+            ⚠ Behavioral Anomaly Detected
+        </p>
+    {% endif %}
+</div>
+{% endif %}
+</div>
+
+</body>
+</html>

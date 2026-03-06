@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Student Attendance Trend</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<h2>Attendance Trend for {{ student_id }}</h2>
+
+<canvas id="attendanceChart"></canvas>
+
+<script>
+const dates = JSON.parse('{{ dates | tojson | safe }}');
+const attendance = JSON.parse('{{ attendance | tojson | safe }}');
+
+const ctx = document.getElementById('attendanceChart');
+
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: dates,
+        datasets: [{
+            label: 'Rolling Attendance',
+            data: attendance,
+            borderWidth: 2
+        }]
+    },
+    options: {
+        scales: {
+            y: {
+                min: 0,
+                max: 1
+            }
+        }
+    }
+});
+</script>
+
+</body>
+</html>

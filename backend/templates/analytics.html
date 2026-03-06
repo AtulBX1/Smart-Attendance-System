@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Attendance Analytics Dashboard</title>
+    
+    <!-- Chart.js Core -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Treemap Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.0.0/dist/chartjs-chart-treemap.min.js"></script>
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background-color: #0f172a;
+            color: #f1f5f9;
+        }
+
+        .navbar {
+            background-color: #1e293b;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .navbar h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #38bdf8;
+        }
+
+        .btn-back {
+            background: #475569;
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            transition: 0.2s;
+        }
+        .btn-back:hover { background: #334155; }
+
+        .container {
+            padding: 30px;
+            max-width: 1600px;
+            margin: auto;
+        }
+
+        /* 8 Chart Grid Layout */
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .chart-card {
+            background-color: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chart-card h3 {
+            margin-top: 0;
+            margin-bottom: 5px;
+            font-size: 16px;
+            color: #e2e8f0;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 10px;
+        }
+        
+        .chart-subtitle {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 15px;
+        }
+
+        .chart-wrapper {
+            flex-grow: 1;
+            position: relative;
+            min-height: 300px;
+            width: 100%;
+        }
+
+        /* Full width for line chart */
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+    </style>
+</head>
+
+<body>
+
+    <div class="navbar">
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <h2>Advanced Analytics</h2>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <label for="semester" style="color: #94a3b8; font-size: 14px;">Select Term:</label>
+                <select id="semester" onchange="window.location.href='?semester=' + this.value" style="background: #0f172a; color: #fff; border: 1px solid #475569; padding: 6px 10px; border-radius: 6px; outline: none; cursor: pointer;">
+                    {% for sem in semesters %}
+                        <option value="{{ sem }}" {% if selected_sem == sem %}selected{% endif %}>Semester {{ sem }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <a href="{{ url_for('dashboard') }}" class="btn-back">← Back to Dashboard</a>
+    </div>
+
+    <div class="container">
+        
+        <div class="chart-grid">
+            
+            <!-- 1. Line Chart (Trends) -->
+            <div class="chart-card full-width">
+                <h3>1. Attendance Trends Over Time (Line Chart)</h3>
+                <div class="chart-subtitle">Continuous daily comparison between Hostlers and Day Scholars showing behavioral drops over the semester.</div>
+                <div class="chart-wrapper" style="min-height: 400px;">
+                    <canvas id="lineChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 2. Bar Chart (Categorical) -->
+            <div class="chart-card">
+                <h3>2. Average Attendance by Section (Bar Chart)</h3>
+                <div class="chart-subtitle">Categorical comparison of overall attendance rates across different class sections.</div>
+                <div class="chart-wrapper">
+                    <canvas id="barChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 3. Donut Chart (Proportions) -->
+            <div class="chart-card">
+                <h3>3. Hostler vs Day Scholar Ratio (Donut Chart)</h3>
+                <div class="chart-subtitle">Proportion of student demographics in the current semester.</div>
+                <div class="chart-wrapper" style="display:flex; justify-content:center;">
+                    <canvas id="donutChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 4. Scatter Plot (Correlation) -->
+            <div class="chart-card">
+                <h3>4. Absence Streak vs Overall Rate (Scatter Plot)</h3>
+                <div class="chart-subtitle">Analyzes the correlation between max consecutive absences and final attendance percentage.</div>
+                <div class="chart-wrapper">
+                    <canvas id="scatterChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 5. Histogram (Distribution) -->
+            <div class="chart-card">
+                <h3>5. Attendance Distribution (Histogram)</h3>
+                <div class="chart-subtitle">Shows frequency of students falling into specific attendance percentage buckets.</div>
+                <div class="chart-wrapper">
+                    <canvas id="histChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 6. Funnel Chart -->
+            <div class="chart-card">
+                <h3>6. Semester Retention (Funnel Chart)</h3>
+                <div class="chart-subtitle">Drop-off visualization: Enrolled -> Attended Start -> Attended Mid -> Attended End.</div>
+                <div class="chart-wrapper">
+                    <canvas id="funnelChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 7. Treemap (Hierarchy) -->
+            <div class="chart-card">
+                <h3>7. Demographic Breakdown (Treemap)</h3>
+                <div class="chart-subtitle">Hierarchical structure showing Sections subdivided by Hostler status.</div>
+                <div class="chart-wrapper">
+                    <canvas id="treemapChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 8. Bullet / Gauge Chart -->
+            <div class="chart-card">
+                <h3>8. Class Target Performance (Bullet/Gauge)</h3>
+                <div class="chart-subtitle">Current class average vs University Target (75%).</div>
+                <div class="chart-wrapper" style="display:flex; justify-content:center;">
+                    <canvas id="gaugeChart"></canvas>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Injecting Backend Data safely into JS scope -->
+    <script id="analytics-data" type="application/json">
+        {
+            "lineLabels": {{ line_labels | tojson }},
+            "lineHostler": {{ line_hostler | tojson }},
+            "lineScholar": {{ line_scholar | tojson }},
+            "barLabels": {{ bar_labels | tojson }},
+            "barData": {{ bar_data | tojson }},
+            "donutData": {{ donut_data | tojson }},
+            "scatterData": {{ scatter_data | tojson }},
+            "histLabels": {{ hist_labels | tojson }},
+            "histData": {{ hist_data | tojson }},
+            "funnelLabels": {{ funnel_labels | tojson }},
+            "funnelData": {{ funnel_data | tojson }},
+            "treemapData": {{ treemap_data | tojson }},
+            "overallAvg": {{ overall_avg | default(0) }}
+        }
+    </script>
+    <script>
+        const analyticsData = JSON.parse(document.getElementById('analytics-data').textContent);
+        const lineLabels = analyticsData.lineLabels;
+        const lineHostler = analyticsData.lineHostler;
+        const lineScholar = analyticsData.lineScholar;
+        const barLabels = analyticsData.barLabels;
+        const barData = analyticsData.barData;
+        const donutData = analyticsData.donutData;
+        const scatterData = analyticsData.scatterData;
+        const histLabels = analyticsData.histLabels;
+        const histData = analyticsData.histData;
+        const funnelLabels = analyticsData.funnelLabels;
+        const funnelData = analyticsData.funnelData;
+        const treemapData = analyticsData.treemapData;
+        const overallAvg = analyticsData.overallAvg;
+
+        // --- Global Defaults for Chart.js Dark Mode ---
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.borderColor = '#334155';
+        
+        function formatDates(dates) {
+            return dates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        }
+
+        // --- 1. Line Chart ---
+        const ctxLine = document.getElementById('lineChart').getContext('2d');
+        
+        let hostlerGradient = ctxLine.createLinearGradient(0, 0, 0, 400);
+        hostlerGradient.addColorStop(0, 'rgba(56, 189, 248, 0.4)');
+        hostlerGradient.addColorStop(1, 'rgba(56, 189, 248, 0.0)');
+
+        let scholarGradient = ctxLine.createLinearGradient(0, 0, 0, 400);
+        scholarGradient.addColorStop(0, 'rgba(244, 63, 94, 0.4)');
+        scholarGradient.addColorStop(1, 'rgba(244, 63, 94, 0.0)');
+
+        new Chart(ctxLine, {
+            type: 'line',
+            data: {
+                labels: formatDates(lineLabels),
+                datasets: [
+                    { label: 'Hostlers', data: lineHostler, borderColor: '#38bdf8', backgroundColor: hostlerGradient, borderWidth: 3, tension: 0.4, fill: true, pointRadius: 0, pointHoverRadius: 6 },
+                    { label: 'Day Scholars', data: lineScholar, borderColor: '#f43f5e', backgroundColor: scholarGradient, borderWidth: 3, tension: 0.4, fill: true, pointRadius: 0, pointHoverRadius: 6 }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false } }
+        });
+
+        // --- 2. Bar Chart ---
+        const ctxBar = document.getElementById('barChart').getContext('2d');
+        new Chart(ctxBar, {
+            type: 'bar',
+            data: {
+                labels: barLabels,
+                datasets: [{ label: 'Avg Attendance %', data: barData, backgroundColor: '#10b981', borderRadius: 6 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+
+        // --- 3. Donut Chart ---
+        const ctxDonut = document.getElementById('donutChart').getContext('2d');
+        new Chart(ctxDonut, {
+            type: 'doughnut',
+            data: {
+                labels: ['Hostlers', 'Day Scholars'],
+                datasets: [{ data: donutData, backgroundColor: ['#38bdf8', '#f43f5e'], borderWidth: 0 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '70%' }
+        });
+
+        // --- 4. Scatter Plot ---
+        const ctxScatter = document.getElementById('scatterChart').getContext('2d');
+        new Chart(ctxScatter, {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: 'Students',
+                    data: scatterData,
+                    backgroundColor: 'rgba(167, 139, 250, 0.6)',
+                    borderColor: '#8b5cf6',
+                    pointRadius: 5
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: { title: { display: true, text: 'Max Consecutive Absences' } },
+                    y: { title: { display: true, text: 'Overall Attendance %' }, min: 0, max: 100 }
+                }
+            }
+        });
+
+        // --- 5. Histogram (Bar) ---
+        const ctxHist = document.getElementById('histChart').getContext('2d');
+        new Chart(ctxHist, {
+            type: 'bar',
+            data: {
+                labels: histLabels,
+                datasets: [{ label: 'Students', data: histData, backgroundColor: '#f59e0b', barPercentage: 1.0, categoryPercentage: 1.0, borderColor: '#1e293b', borderWidth: 1 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+
+        // --- 6. Funnel Chart (Horizontal Bar workaround) ---
+        const ctxFunnel = document.getElementById('funnelChart').getContext('2d');
+        new Chart(ctxFunnel, {
+            type: 'bar', 
+            data: {
+                labels: funnelLabels,
+                datasets: [{ data: funnelData, backgroundColor: ['#3b82f6', '#0ea5e9', '#06b6d4', '#14b8a6'], borderRadius: 4 }]
+            },
+            options: { 
+                indexAxis: 'y', 
+                responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } 
+            }
+        });
+
+        // --- 7. Treemap ---
+        const ctxTree = document.getElementById('treemapChart').getContext('2d');
+        new Chart(ctxTree, {
+            type: 'treemap',
+            data: {
+                datasets: [{
+                    tree: treemapData,
+                    key: 'value',
+                    groups: ['section', 'name'],
+                    spacing: 1,
+                    borderWidth: 1,
+                    borderColor: '#1e293b',
+                    backgroundColor: (ctx) => {
+                        if (!ctx.raw) return '#334155';
+                        const sec = ctx.raw._data.section;
+                        if(sec === 'A') return '#8b5cf6';
+                        if(sec === 'B') return '#06b6d4';
+                        if(sec === 'C') return '#ec4899';
+                        return '#64748b';
+                    },
+                    labels: {
+                        display: true,
+                        color: 'white',
+                        font: { size: 12, weight: 'bold' },
+                        formatter: (ctx) => ctx.raw._data.name + ' (' + ctx.raw.v + ')'
+                    }
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+
+        // --- 8. Bullet/Gauge (Half Doughnut workaround) ---
+        const ctxGauge = document.getElementById('gaugeChart').getContext('2d');
+        new Chart(ctxGauge, {
+            type: 'doughnut',
+            data: {
+                labels: ['Current Avg', 'Shortfall to 100%'],
+                datasets: [{
+                    data: [overallAvg, 100 - overallAvg],
+                    backgroundColor: [overallAvg >= 75 ? '#10b981' : '#f43f5e', '#334155'],
+                    borderWidth: 0,
+                    circumference: 180,
+                    rotation: 270
+                }]
+            },
+            options: { 
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                }
+            },
+            plugins: [{
+                id: 'gaugeText',
+                beforeDraw: function(chart) {
+                    var width = chart.width, height = chart.height, ctx = chart.ctx;
+                    ctx.restore();
+                    var fontSize = (height / 100).toFixed(2);
+                    ctx.font = "bold " + fontSize + "em sans-serif";
+                    ctx.textBaseline = "middle";
+                    ctx.fillStyle = "#f8fafc";
+                    var text = overallAvg + "%",
+                        textX = Math.round((width - ctx.measureText(text).width) / 2),
+                        textY = height / 1.5;
+                    ctx.fillText(text, textX, textY);
+                    
+                    ctx.font = (fontSize/3) + "em sans-serif";
+                    ctx.fillStyle = "#94a3b8";
+                    var text2 = "Target: 75%",
+                        text2X = Math.round((width - ctx.measureText(text2).width) / 2);
+                    ctx.fillText(text2, text2X, textY + 25);
+                    ctx.save();
+                }
+            }]
+        });
+
+    </script>
+</body>
+</html>
