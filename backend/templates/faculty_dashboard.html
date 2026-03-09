@@ -334,7 +334,7 @@
         <div class="alert alert-success">{{ message }}</div>
         {% endif %}
 
-        <h3 style="color:#e2e8f0; margin-bottom:20px;">Your Allotted Assigned Sections:</h3>
+        <h3 style="color:#e2e8f0; margin-bottom:20px;">Assigned Subject: <span style="color:#0ea5e9;">{{ subject }}</span></h3>
 
         <div class="section-grid">
             {% for cls in classes %}
@@ -349,7 +349,7 @@
         {% for cls in classes %}
         <div id="form-{{ cls.section }}" class="attendance-form">
             <div class="list-header">
-                <h3>Marking Attendance: Section {{ cls.section }}</h3>
+                <h3>Marking Attendance: Section {{ cls.section }} ({{ subject }})</h3>
                 <span style="color:#94a3b8; font-size:14px;">Date: <input type="date" id="date-{{ cls.section }}"
                         value=""
                         style="background:#0f172a; color:#fff; border:1px solid #475569; padding:5px; border-radius:4px;"
@@ -358,6 +358,7 @@
 
             <form method="POST" action="{{ url_for('faculty_dashboard') }}">
                 <input type="hidden" name="section" value="{{ cls.section }}">
+                <input type="hidden" name="subject" value="{{ subject }}">
                 <input type="hidden" name="date" class="date-input-hidden" value="">
 
                 {% for student in all_students if student.Section == cls.section %}

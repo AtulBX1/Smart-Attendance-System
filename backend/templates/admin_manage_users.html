@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Manage Faculty - Smart Attendance System</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background-color: #0f172a;
+            color: #f1f5f9;
+        }
+
+        .navbar {
+            background-color: #1e293b;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .navbar h2 { margin: 0; font-size: 20px; color: #f8fafc; }
+        .nav-controls { display: flex; align-items: center; gap: 12px; }
+
+        .btn {
+            padding: 8px 16px; border-radius: 6px; text-decoration: none;
+            color: white; cursor: pointer; border: none; font-size: 14px;
+            font-weight: bold; transition: all 0.2s; display: inline-block;
+        }
+        .btn-back { background: #475569; }
+        .btn-back:hover { background: #64748b; }
+        .btn-smtp { background: #8b5cf6; }
+        .btn-smtp:hover { background: #7c3aed; }
+        .btn-logout { background: #ef4444; }
+        .btn-logout:hover { background: #b91c1c; }
+
+        .container { padding: 30px; max-width: 1100px; margin: auto; }
+
+        /* Upload Section */
+        .upload-section {
+            background: #1e293b; border-radius: 12px; border: 1px solid #334155;
+            padding: 24px; margin-bottom: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+        .upload-section h3 { margin: 0 0 4px 0; font-size: 17px; color: #f8fafc; }
+        .upload-section .desc { color: #94a3b8; font-size: 13px; margin-bottom: 16px; }
+
+        .upload-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+
+        .file-input-wrapper {
+            flex: 1; min-width: 250px;
+        }
+        .file-input-wrapper label {
+            display: block; color: #94a3b8; font-size: 12px; font-weight: 600;
+            text-transform: uppercase; margin-bottom: 6px;
+        }
+        .file-input-wrapper input[type=file] {
+            width: 100%; padding: 10px; border: 1px dashed #475569;
+            border-radius: 8px; background: #0f172a; color: #cbd5e1;
+            font-size: 13px; cursor: pointer;
+        }
+
+        .btn-upload {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white; padding: 12px 24px; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .btn-upload:hover { box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4); }
+        .btn-upload:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .csv-hint {
+            margin-top: 12px; padding: 10px 14px; background: #0f172a;
+            border: 1px solid #334155; border-radius: 6px;
+            font-size: 11px; color: #94a3b8; font-family: monospace;
+        }
+        .csv-hint strong { color: #cbd5e1; font-family: 'Segoe UI', sans-serif; }
+
+        .upload-result {
+            margin-top: 14px; padding: 14px; border-radius: 8px;
+            font-size: 14px; font-weight: 600; display: none;
+        }
+        .upload-result.success { display: block; background: rgba(16,185,129,0.15); color: #86efac; border-left: 4px solid #10b981; }
+        .upload-result.error { display: block; background: rgba(239,68,68,0.15); color: #fca5a5; border-left: 4px solid #ef4444; }
+
+        .upload-details {
+            margin-top: 8px; font-size: 12px; font-weight: 400; color: #94a3b8;
+        }
+
+        /* SMTP Warning */
+        .smtp-warning {
+            background: rgba(251, 191, 36, 0.12); border: 1px solid rgba(251, 191, 36, 0.3);
+            border-radius: 8px; padding: 14px 18px; margin-bottom: 20px;
+            font-size: 13px; color: #fde68a;
+        }
+        .smtp-warning a { color: #fbbf24; font-weight: bold; }
+
+        /* Table Section */
+        .section-block {
+            background: #1e293b; border-radius: 12px; border: 1px solid #334155;
+            overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+        .section-header {
+            padding: 15px 20px; margin: 0; font-size: 16px; font-weight: 600;
+            background: rgba(56, 189, 248, 0.1); color: #7dd3fc;
+            border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+        th {
+            background: #0f172a; color: #94a3b8; font-size: 12px;
+            text-transform: uppercase; text-align: left; padding: 12px 18px;
+            font-weight: 600; border-bottom: 1px solid #334155;
+        }
+        td {
+            padding: 13px 18px; border-bottom: 1px solid #334155;
+            color: #cbd5e1; font-size: 14px;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(255,255,255,0.02); }
+
+        .role-badge {
+            display: inline-block; padding: 3px 10px; border-radius: 12px;
+            font-size: 11px; font-weight: bold; text-transform: uppercase;
+            background: rgba(16, 185, 129, 0.2); color: #34d399;
+        }
+
+        .btn-resend {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white; padding: 6px 12px; border: none; border-radius: 6px;
+            cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s;
+        }
+        .btn-resend:hover { box-shadow: 0 3px 8px rgba(59, 130, 246, 0.4); }
+        .btn-resend:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .otp-status { font-size: 11px; margin-top: 4px; min-height: 16px; }
+        .status-success { color: #34d399; }
+        .status-error { color: #fca5a5; }
+
+        .toast {
+            position: fixed; top: 20px; right: 20px; padding: 14px 22px;
+            border-radius: 8px; font-weight: 600; font-size: 14px; z-index: 9999;
+            opacity: 0; transform: translateX(100px); transition: all 0.4s ease;
+            max-width: 450px;
+        }
+        .toast.show { opacity: 1; transform: translateX(0); }
+        .toast-success { background: #065f46; color: #a7f3d0; border-left: 4px solid #10b981; }
+        .toast-error { background: #7f1d1d; color: #fca5a5; border-left: 4px solid #ef4444; }
+
+        .empty-msg { text-align: center; color: #64748b; padding: 30px; }
+    </style>
+</head>
+
+<body>
+
+    <div class="navbar">
+        <h2>👥 Manage Faculty</h2>
+        <div class="nav-controls">
+            <a href="{{ url_for('dashboard') }}" class="btn btn-back">← Dashboard</a>
+            <a href="{{ url_for('smtp_settings') }}" class="btn btn-smtp">⚙️ SMTP Settings</a>
+            <a href="{{ url_for('logout') }}" class="btn btn-logout">Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+
+        {% if not smtp_configured %}
+        <div class="smtp-warning">
+            ⚠️ SMTP is not configured. Emails will print to the server console.
+            <a href="{{ url_for('smtp_settings') }}">Configure SMTP →</a> to send real emails.
+        </div>
+        {% endif %}
+
+        <!-- CSV Upload Section -->
+        <div class="upload-section">
+            <h3>📤 Upload Faculty Dataset (CSV)</h3>
+            <p class="desc">Upload a CSV file to automatically create faculty accounts and send login OTP emails.</p>
+
+            <div class="upload-row">
+                <div class="file-input-wrapper">
+                    <label>Select CSV File</label>
+                    <input type="file" id="csvFile" accept=".csv">
+                </div>
+                <button class="btn-upload" id="uploadBtn" onclick="uploadCSV()">🚀 Upload & Send OTPs</button>
+            </div>
+
+            <div class="csv-hint">
+                <strong>Expected CSV columns:</strong><br>
+                name,email,subject,sections,time_slot<br>
+                Rahul Sharma,rahul@school.edu,Math,"A,B,C,D",09:00 AM - 10:00 AM
+            </div>
+
+            <div class="upload-result" id="uploadResult"></div>
+        </div>
+
+        <!-- Faculty Table -->
+        <div class="section-block">
+            <div class="section-header">
+                📋 All Faculty Accounts ({{ users|length }})
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Email</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td><strong>{{ user.full_name or '-' }}</strong></td>
+                        <td>{{ user.username }}</td>
+                        <td><span class="role-badge">{{ user.role }}</span></td>
+                        <td>{{ user.email or 'Not set' }}</td>
+                        <td>
+                            <button class="btn-resend" id="btn-{{ user.username }}"
+                                onclick="resendOTP('{{ user.username }}')"
+                                {% if not user.email %}disabled title="No email"{% endif %}>
+                                🔄 Resend OTP
+                            </button>
+                            <div class="otp-status" id="status-{{ user.username }}"></div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if users|length == 0 %}
+                    <tr><td colspan="5" class="empty-msg">No faculty accounts yet. Upload a CSV above to get started.</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        function showToast(message, type) {
+            const toast = document.getElementById('toast');
+            toast.className = 'toast toast-' + type + ' show';
+            toast.textContent = message;
+            setTimeout(() => { toast.classList.remove('show'); }, 5000);
+        }
+
+        function uploadCSV() {
+            const fileInput = document.getElementById('csvFile');
+            const btn = document.getElementById('uploadBtn');
+            const resultDiv = document.getElementById('uploadResult');
+
+            if (!fileInput.files.length) {
+                showToast('Please select a CSV file first.', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            btn.disabled = true;
+            btn.textContent = '⏳ Processing...';
+            resultDiv.className = 'upload-result';
+            resultDiv.style.display = 'none';
+
+            fetch('/admin/upload_faculty', { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        resultDiv.className = 'upload-result success';
+                        let html = '✅ ' + data.message;
+                        if (data.details && data.details.errors && data.details.errors.length > 0) {
+                            html += '<div class="upload-details">⚠️ Notes:<br>' + data.details.errors.join('<br>') + '</div>';
+                        }
+                        resultDiv.innerHTML = html;
+                        showToast(data.message, 'success');
+                        // Reload page after 2s to show new users
+                        setTimeout(() => window.location.reload(), 2000);
+                    } else {
+                        resultDiv.className = 'upload-result error';
+                        resultDiv.textContent = '❌ ' + data.message;
+                        showToast('Upload failed: ' + data.message, 'error');
+                    }
+                })
+                .catch(err => {
+                    resultDiv.className = 'upload-result error';
+                    resultDiv.textContent = '❌ Network error. Please try again.';
+                    showToast('Network error.', 'error');
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.textContent = '🚀 Upload & Send OTPs';
+                });
+        }
+
+        function resendOTP(username) {
+            const btn = document.getElementById('btn-' + username);
+            const statusEl = document.getElementById('status-' + username);
+
+            btn.disabled = true;
+            btn.textContent = '⏳...';
+            statusEl.className = 'otp-status';
+            statusEl.textContent = 'Sending...';
+
+            fetch('/admin/send_login_otp/' + username, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    statusEl.className = 'otp-status status-success';
+                    statusEl.textContent = '✅ ' + data.message;
+                    showToast('OTP sent to ' + username, 'success');
+                } else {
+                    statusEl.className = 'otp-status status-error';
+                    statusEl.textContent = '❌ ' + data.message;
+                }
+            })
+            .catch(() => {
+                statusEl.className = 'otp-status status-error';
+                statusEl.textContent = '❌ Error';
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.textContent = '🔄 Resend OTP';
+            });
+        }
+    </script>
+
+</body>
+</html>

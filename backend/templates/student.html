@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Student {{ student_id }} — Smart Attendance</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono&family=Inter:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:#0b0e14;--surface:#12161f;--surface2:#181d29;--border:#1e2535;
+      --text:#e8eaf0;--muted:#5a6278;--accent:#4f8ef7;
+      --danger:#ff4b6e;--warn:#f5a623;--safe:#28d98e;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;padding:40px;}
+    a{color:var(--accent);text-decoration:none;font-size:13px;}
+    a:hover{text-decoration:underline;}
+    .back{display:inline-flex;align-items:center;gap:6px;margin-bottom:24px;}
+    h1{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;}
+    .meta{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0 28px;}
+    .chip{font-size:12px;padding:5px 12px;border-radius:6px;background:var(--surface);border:1px solid var(--border);font-family:'DM Mono',monospace;}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px;}
+    .card h3{font-family:'Syne',sans-serif;font-size:14px;color:var(--muted);margin-bottom:16px;text-transform:uppercase;letter-spacing:0.6px;}
+    .subject-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+    .subject-name{font-size:12px;color:var(--muted);width:90px;}
+    .subject-track{flex:1;height:7px;background:var(--border);border-radius:99px;overflow:hidden;}
+    .subject-fill{height:100%;border-radius:99px;background:var(--accent);}
+    .subject-pct{font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);width:36px;text-align:right;}
+    .intervention{border-radius:10px;padding:16px 20px;font-size:14px;font-weight:500;}
+  </style>
+</head>
+<body>
+  <a class="back" href="/dashboard">← Back to Dashboard</a>
+
+  <h1 id="sid">Loading...</h1>
+  <div class="meta" id="meta"></div>
+
+  <div class="card">
+    <h3>Attendance Timeline</h3>
+    <canvas id="chart" height="80"></canvas>
+  </div>
+
+  <div class="card">
+    <h3>Subject Breakdown</h3>
+    <div id="subjects"></div>
+  </div>
+
+  <div id="intervention"></div>
+
+  <script>
+    const sid = "{{ student_id }}";
+    document.title = `${sid} — Smart Attendance`;
+
+    fetch(`/api/student/${sid}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) { document.getElementById('sid').textContent = 'Student not found'; return; }
+        const f = d.features;
+        const rc = f.risk_label === 'High Risk' ? 'var(--danger)' : f.risk_label === 'Watchlist' ? 'var(--warn)' : 'var(--safe)';
+
+        document.getElementById('sid').textContent = d.student_id;
+        document.getElementById('sid').style.color = rc;
+
+        document.getElementById('meta').innerHTML = `
+          <span class="chip" style="color:${rc}">${f.risk_label || '?'}</span>
+          <span class="chip">${f.semester_attendance_pct}% Overall</span>
+          <span class="chip">Risk Score: ${f.risk_score || '?'}%</span>
+          <span class="chip">Absence Streak: ${f.recent_absence_streak}d</span>
+        `;
+
+        if (d.timeline?.length) {
+          new Chart(document.getElementById('chart'), {
+            type: 'line',
+            data: {
+              labels: d.timeline.map(t => t.date.slice(5)),
+              datasets: [{ data: d.timeline.map(t => t.attendance), borderColor: rc, backgroundColor: rc+'22', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 }]
+            },
+            options: {
+              plugins: { legend: { display: false } },
+              scales: {
+                y: { min: 0, max: 100, grid: { color: '#1e2535' }, ticks: { color: '#5a6278' } },
+                x: { grid: { display: false }, ticks: { color: '#5a6278', maxTicksLimit: 10 } }
+              }
+            }
+          });
+        }
+
+        if (d.subjects?.length) {
+          document.getElementById('subjects').innerHTML = d.subjects.map(s =>
+            `<div class="subject-row">
+              <span class="subject-name">${s.subject}</span>
+              <div class="subject-track"><div class="subject-fill" style="width:${s.pct}%"></div></div>
+              <span class="subject-pct">${s.pct}%</span>
+            </div>`
+          ).join('');
+        }
+
+        if (f.intervention) {
+          const bg = f.risk_label === 'High Risk' ? 'rgba(255,75,110,0.08)' : f.risk_label === 'Watchlist' ? 'rgba(245,166,35,0.08)' : 'rgba(40,217,142,0.08)';
+          document.getElementById('intervention').innerHTML = `<div class="intervention" style="background:${bg};border:1px solid ${rc}40">${f.intervention}</div>`;
+        }
+      });
+  </script>
+</body>
+</html>

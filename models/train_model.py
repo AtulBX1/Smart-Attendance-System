@@ -3,7 +3,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 from xgboost import XGBClassifier
-import pickle
+import joblib
 import numpy as np
 
 # Load processed data
@@ -61,7 +61,7 @@ print("Ensemble Model Report:")
 print(classification_report(y_test, ensemble_preds))
 
 # Save individual models
-pickle.dump(rf_model, open("models/rf_model.pkl", "wb"))
-pickle.dump(xgb_model, open("models/xgb_model.pkl", "wb"))
+joblib.dump(rf_model, "models/rf_model.pkl")
+joblib.dump(xgb_model, "models/xgb_model.pkl")
 
 print("Models trained and saved successfully!")

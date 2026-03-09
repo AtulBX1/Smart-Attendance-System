@@ -202,18 +202,18 @@
     <!-- Injecting Backend Data safely into JS scope -->
     <script id="analytics-data" type="application/json">
         {
-            "lineLabels": {{ line_labels | tojson }},
-            "lineHostler": {{ line_hostler | tojson }},
-            "lineScholar": {{ line_scholar | tojson }},
-            "barLabels": {{ bar_labels | tojson }},
-            "barData": {{ bar_data | tojson }},
-            "donutData": {{ donut_data | tojson }},
-            "scatterData": {{ scatter_data | tojson }},
-            "histLabels": {{ hist_labels | tojson }},
-            "histData": {{ hist_data | tojson }},
-            "funnelLabels": {{ funnel_labels | tojson }},
-            "funnelData": {{ funnel_data | tojson }},
-            "treemapData": {{ treemap_data | tojson }},
+            "lineLabels": {{ line_labels | default([]) | tojson }},
+            "lineHostler": {{ line_hostler | default([]) | tojson }},
+            "lineScholar": {{ line_scholar | default([]) | tojson }},
+            "barLabels": {{ bar_labels | default([]) | tojson }},
+            "barData": {{ bar_data | default([]) | tojson }},
+            "donutData": {{ donut_data | default([]) | tojson }},
+            "scatterData": {{ scatter_data | default([]) | tojson }},
+            "histLabels": {{ hist_labels | default([]) | tojson }},
+            "histData": {{ hist_data | default([]) | tojson }},
+            "funnelLabels": {{ funnel_labels | default([]) | tojson }},
+            "funnelData": {{ funnel_data | default([]) | tojson }},
+            "treemapData": {{ treemap_data | default([]) | tojson }},
             "overallAvg": {{ overall_avg | default(0) }}
         }
     </script>

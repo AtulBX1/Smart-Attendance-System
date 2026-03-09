@@ -4,19 +4,19 @@ def preprocess_data(input_path, output_path):
     df = pd.read_csv(input_path)
 
     df["Date"] = pd.to_datetime(df["Date"])
-    df = df.sort_values(["StudentID", "Date"]).reset_index(drop=True)
+    df = df.sort_values(["StudentID", "Subject", "Date"]).reset_index(drop=True)
 
-    # Rolling 10-day attendance average
+    # Rolling 10-day attendance average per subject
     df["Rolling_Attendance"] = (
-        df.groupby("StudentID")["Present"]
+        df.groupby(["StudentID", "Subject"])["Present"]
         .rolling(window=10, min_periods=1)
         .mean()
-        .reset_index(level=0, drop=True)
+        .reset_index(level=[0, 1], drop=True)
     )
 
-    # Calculate attendance trend
+    # Calculate attendance trend per subject
     df["Rolling_Attendance_Prev"] = (
-        df.groupby("StudentID")["Rolling_Attendance"]
+        df.groupby(["StudentID", "Subject"])["Rolling_Attendance"]
         .shift(10)
     )
 
@@ -27,29 +27,29 @@ def preprocess_data(input_path, output_path):
     # Fill missing trend values
     df["Attendance_Trend"] = df["Attendance_Trend"].fillna(0)
 
-    # Absence streak
+    # Absence streak per subject
     df["Absence_Streak"] = 0
 
-    for student in df["StudentID"].unique():
-        mask = df["StudentID"] == student
+    # A faster vectorized way or optimized grouping
+    def calc_streak(group):
         streak = 0
         streak_list = []
-
-        for val in df.loc[mask, "Present"]:
+        for val in group:
             if val == 0:
                 streak += 1
             else:
                 streak = 0
             streak_list.append(streak)
+        return streak_list
 
-        df.loc[mask, "Absence_Streak"] = streak_list
+    df["Absence_Streak"] = df.groupby(["StudentID", "Subject"])["Present"].transform(calc_streak)
 
-    # Semester attendance
+    # Semester attendance per subject
     df["Semester_Attendance"] = (
-        df.groupby(["StudentID", "Semester"])["Present"]
+        df.groupby(["StudentID", "Subject", "Semester"])["Present"]
         .expanding()
         .mean()
-        .reset_index(level=[0, 1], drop=True)
+        .reset_index(level=[0, 1, 2], drop=True)
     )
 
     import numpy as np

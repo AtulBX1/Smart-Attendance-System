@@ -1,11 +1,13 @@
-from flask import Flask, render_template, request, session, redirect, url_for, flash
+from flask import Flask, render_template, request, session, redirect, url_for, flash, jsonify
 import pandas as pd
-import pickle
+import joblib
 import numpy as np
 import sqlite3
 import os
 import functools
 import sys
+import random
+from datetime import datetime, timedelta
 
 # Resolve base directory relative to this file
 base_dir = os.path.dirname(os.path.dirname(__file__))
@@ -13,6 +15,9 @@ sys.path.append(base_dir)
 
 from models.anomaly_detection import run_anomaly_detection
 from utils.notifications import run_notifications_job
+from utils.email_sender import send_otp_email, send_welcome_email, test_smtp_connection, get_smtp_config
+import io
+import csv
 
 app = Flask(__name__)
 app.secret_key = 'super_secret_attendance_key'
@@ -20,7 +25,7 @@ app.secret_key = 'super_secret_attendance_key'
 # Load model
 model_path = os.path.join(base_dir, "models", "rf_model.pkl")
 if os.path.exists(model_path):
-    model = pickle.load(open(model_path, "rb"))
+    model = joblib.load(model_path)
 else:
     model = None
     print(f"Warning: Model not found at {model_path}")
@@ -46,33 +51,414 @@ def login_required(role=None):
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        username = request.form.get("username")
-        password = request.form.get("password")
-        
+        username = request.form.get("username", "").strip()
+        step = request.form.get("step", "1")
+
         conn = get_db_connection()
-        user = pd.read_sql_query("SELECT * FROM users WHERE username = ? AND password = ?", conn, params=(username, password))
-        conn.close()
-        
-        if not user.empty:
+        user = pd.read_sql_query("SELECT * FROM users WHERE username = ?", conn, params=(username,))
+
+        if user.empty:
+            conn.close()
+            return render_template("login.html", error="Username not found.", step=1)
+
+        user_role = user.iloc[0]["role"]
+
+        # ---- ADMIN: traditional password login ----
+        if user_role == "admin":
+            password = request.form.get("password", "")
+            if password and user.iloc[0]["password"] == password:
+                session["user_id"] = int(user.iloc[0]["id"])
+                session["username"] = user.iloc[0]["username"]
+                session["role"] = user.iloc[0]["role"]
+                conn.close()
+                return redirect(url_for("dashboard"))
+            else:
+                conn.close()
+                return render_template("login.html", error="Invalid password.", step=1, username=username, is_admin=True)
+
+        # ---- FACULTY / MENTOR: OTP-based login ----
+        if step == "1":
+            # Step 1: username entered — show OTP input
+            conn.close()
+            return render_template("login.html", step=2, username=username,
+                                   info="Enter the OTP sent to your registered email by the admin.")
+
+        elif step == "2":
+            # Step 2: verify OTP
+            otp_entered = request.form.get("otp", "").strip()
+            otp_record = pd.read_sql_query(
+                "SELECT * FROM login_otps WHERE username = ? AND used = 0 ORDER BY id DESC LIMIT 1",
+                conn, params=(username,)
+            )
+
+            if otp_record.empty:
+                conn.close()
+                return render_template("login.html", step=2, username=username,
+                                       error="No active OTP found. Please ask your admin to send a new one.")
+
+            stored_otp = str(otp_record.iloc[0]["otp_code"])
+            expires_at = datetime.strptime(otp_record.iloc[0]["expires_at"], "%Y-%m-%d %H:%M:%S")
+
+            if datetime.now() > expires_at:
+                conn.close()
+                return render_template("login.html", step=2, username=username,
+                                       error="OTP has expired. Please ask your admin to send a new one.")
+
+            if otp_entered != stored_otp:
+                conn.close()
+                return render_template("login.html", step=2, username=username,
+                                       error="Invalid OTP. Please try again.")
+
+            # OTP valid — mark as used and log in
+            cursor = conn.cursor()
+            cursor.execute("UPDATE login_otps SET used = 1 WHERE id = ?", (int(otp_record.iloc[0]["id"]),))
+            conn.commit()
+
             session["user_id"] = int(user.iloc[0]["id"])
             session["username"] = user.iloc[0]["username"]
             session["role"] = user.iloc[0]["role"]
-            
-            if session["role"] == "admin":
-                return redirect(url_for("dashboard"))
-            elif session["role"] == "faculty":
+            conn.close()
+
+            if session["role"] == "faculty":
                 return redirect(url_for("faculty_dashboard"))
             elif session["role"] == "mentor":
                 return redirect(url_for("mentor_dashboard", mentor_id=session["username"]))
-        else:
-            return render_template("login.html", error="Invalid credentials")
-            
-    return render_template("login.html")
+
+    return render_template("login.html", step=1)
 
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+# ---- ADMIN: User Management & OTP Dispatch ---- #
+@app.route("/admin/manage_users")
+@login_required(role="admin")
+def manage_users():
+    """Admin page to view all faculty and manage OTPs."""
+    conn = get_db_connection()
+    users_df = pd.read_sql_query(
+        "SELECT id, username, role, email, full_name FROM users WHERE role != 'admin' ORDER BY role, username", conn
+    )
+
+    # Check if SMTP is configured
+    smtp_cfg = get_smtp_config()
+    smtp_configured = smtp_cfg is not None
+
+    conn.close()
+    users_list = users_df.to_dict(orient="records")
+    return render_template("admin_manage_users.html", users=users_list, smtp_configured=smtp_configured)
+
+
+@app.route("/admin/send_login_otp/<username>", methods=["POST"])
+@login_required(role="admin")
+def send_login_otp(username):
+    """Admin resends a login OTP to a faculty's email."""
+    conn = get_db_connection()
+    user = pd.read_sql_query("SELECT * FROM users WHERE username = ?", conn, params=(username,))
+
+    if user.empty:
+        conn.close()
+        return jsonify({"success": False, "message": "User not found."}), 404
+
+    user_role = user.iloc[0]["role"]
+    if user_role == "admin":
+        conn.close()
+        return jsonify({"success": False, "message": "Cannot send OTP to admin accounts."}), 400
+
+    user_email = user.iloc[0].get("email", "")
+    if not user_email:
+        conn.close()
+        return jsonify({"success": False, "message": f"No email configured for {username}."}), 400
+
+    # Invalidate any previous unused OTPs for this user
+    cursor = conn.cursor()
+    cursor.execute("UPDATE login_otps SET used = 1 WHERE username = ? AND used = 0", (username,))
+
+    # Generate and store new OTP (10 min expiry)
+    otp_code = str(random.randint(100000, 999999))
+    now = datetime.now()
+    created_at = now.strftime("%Y-%m-%d %H:%M:%S")
+    expires_at = (now + timedelta(minutes=10)).strftime("%Y-%m-%d %H:%M:%S")
+
+    cursor.execute(
+        "INSERT INTO login_otps (username, otp_code, created_at, expires_at, used) VALUES (?, ?, ?, ?, 0)",
+        (username, otp_code, created_at, expires_at)
+    )
+    conn.commit()
+    conn.close()
+
+    # Send email (or console fallback)
+    success, msg = send_otp_email(user_email, otp_code, username)
+    return jsonify({"success": success, "message": msg})
+
+
+# ---- ADMIN: SMTP Settings ---- #
+@app.route("/admin/smtp_settings", methods=["GET", "POST"])
+@login_required(role="admin")
+def smtp_settings():
+    """Admin configures SMTP email settings."""
+    conn = get_db_connection()
+
+    if request.method == "POST":
+        smtp_host = request.form.get("smtp_host", "").strip()
+        smtp_port = request.form.get("smtp_port", "587").strip()
+        smtp_user = request.form.get("smtp_user", "").strip()
+        smtp_pass = request.form.get("smtp_pass", "").strip()
+
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE smtp_config SET smtp_host=?, smtp_port=?, smtp_user=?, smtp_pass=? WHERE id=1",
+            (smtp_host, int(smtp_port), smtp_user, smtp_pass)
+        )
+        conn.commit()
+        conn.close()
+        return render_template("admin_smtp_settings.html",
+                               smtp_host=smtp_host, smtp_port=smtp_port,
+                               smtp_user=smtp_user, smtp_pass=smtp_pass,
+                               success="SMTP settings saved successfully!")
+
+    # GET: load current settings
+    row = conn.execute("SELECT * FROM smtp_config WHERE id = 1").fetchone()
+    conn.close()
+    if row:
+        return render_template("admin_smtp_settings.html",
+                               smtp_host=row[1] or "", smtp_port=row[2] or 587,
+                               smtp_user=row[3] or "", smtp_pass=row[4] or "")
+    return render_template("admin_smtp_settings.html")
+
+
+@app.route("/admin/test_smtp", methods=["POST"])
+@login_required(role="admin")
+def test_smtp():
+    """Test SMTP connection with current settings."""
+    data = request.get_json()
+    success, msg = test_smtp_connection(
+        data.get("host", ""), data.get("port", 587),
+        data.get("user", ""), data.get("pass", "")
+    )
+    return jsonify({"success": success, "message": msg})
+
+
+# ---- ADMIN: Faculty CSV Upload ---- #
+@app.route("/admin/upload_faculty", methods=["POST"])
+@login_required(role="admin")
+def upload_faculty():
+    """Upload CSV to auto-create faculty accounts and send OTP emails."""
+    if "file" not in request.files:
+        return jsonify({"success": False, "message": "No file uploaded."}), 400
+
+    file = request.files["file"]
+    if not file.filename.endswith(".csv"):
+        return jsonify({"success": False, "message": "Please upload a CSV file."}), 400
+
+    try:
+        raw = file.stream.read().decode("utf-8-sig")  # utf-8-sig handles BOM from Excel
+        stream = io.StringIO(raw)
+        reader = csv.DictReader(stream)
+
+        # Strip whitespace from column headers
+        if reader.fieldnames:
+            reader.fieldnames = [f.strip() for f in reader.fieldnames]
+
+        required_cols = {"name", "email", "subject", "sections", "time_slot"}
+        if not required_cols.issubset(set(reader.fieldnames or [])):
+            missing = required_cols - set(reader.fieldnames or [])
+            return jsonify({"success": False, "message": f"Missing columns: {', '.join(missing)}"}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        results = {"created": 0, "skipped": 0, "emails_sent": 0, "errors": []}
+
+        for row in reader:
+            name = row["name"].strip()
+            email = row["email"].strip()
+            subject = row["subject"].strip()
+            sections = [s.strip() for s in row["sections"].split(",")]
+            time_slot = row["time_slot"].strip()
+
+            # Auto-generate username from name
+            username = name.lower().replace(" ", "_")
+
+            # Check if user already exists
+            existing = pd.read_sql_query("SELECT id FROM users WHERE username = ?", conn, params=(username,))
+            if not existing.empty:
+                results["skipped"] += 1
+                results["errors"].append(f"{username}: already exists (skipped)")
+                continue
+
+            # Create user account (password=otp_only since they use OTP login)
+            cursor.execute(
+                "INSERT INTO users (username, password, role, email, full_name) VALUES (?, ?, ?, ?, ?)",
+                (username, "otp_only", "faculty", email, name)
+            )
+
+            # Create faculty class assignments
+            for section in sections:
+                cursor.execute(
+                    "INSERT INTO faculty_classes (faculty_username, subject, section, time_slot) VALUES (?, ?, ?, ?)",
+                    (username, subject, section, time_slot)
+                )
+
+            # Generate login OTP (10 min expiry)
+            otp_code = str(random.randint(100000, 999999))
+            now = datetime.now()
+            created_at = now.strftime("%Y-%m-%d %H:%M:%S")
+            expires_at = (now + timedelta(minutes=10)).strftime("%Y-%m-%d %H:%M:%S")
+
+            cursor.execute(
+                "INSERT INTO login_otps (username, otp_code, created_at, expires_at, used) VALUES (?, ?, ?, ?, 0)",
+                (username, otp_code, created_at, expires_at)
+            )
+
+            results["created"] += 1
+
+            # Auto-send welcome email with credentials
+            success, msg = send_welcome_email(email, name, username, otp_code)
+            if success:
+                results["emails_sent"] += 1
+            else:
+                results["errors"].append(f"{username}: email failed — {msg}")
+
+        conn.commit()
+        conn.close()
+
+        summary = f"Created {results['created']} accounts, sent {results['emails_sent']} emails."
+        if results["skipped"] > 0:
+            summary += f" Skipped {results['skipped']} (already exist)."
+
+        return jsonify({
+            "success": True,
+            "message": summary,
+            "details": results
+        })
+
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error processing CSV: {str(e)}"}), 500
+
+
+# ---- OTP CREDENTIAL CHANGE ROUTES ---- #
+@app.route("/change_credentials", methods=["GET", "POST"])
+def change_credentials():
+    """Step 1: User enters current username to request an OTP."""
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        
+        conn = get_db_connection()
+        user = pd.read_sql_query("SELECT * FROM users WHERE username = ?", conn, params=(username,))
+        
+        if user.empty:
+            conn.close()
+            return render_template("change_credentials.html", step=1, error="Username not found.")
+        
+        user_role = user.iloc[0]["role"]
+        if user_role == "admin":
+            conn.close()
+            return render_template("change_credentials.html", step=1, error="Admin credentials cannot be changed through this flow.")
+        
+        # Generate 6-digit OTP
+        otp_code = str(random.randint(100000, 999999))
+        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO otp_requests (username, otp_code, created_at, used) VALUES (?, ?, ?, 0)",
+                       (username, otp_code, created_at))
+        conn.commit()
+        conn.close()
+        
+        # In a real system, this OTP would be sent via email/SMS
+        return render_template("change_credentials.html", step=2, username=username, otp_display=otp_code)
+    
+    return render_template("change_credentials.html", step=1)
+
+
+@app.route("/verify_otp", methods=["POST"])
+def verify_otp():
+    """Step 2: User enters the OTP to verify identity."""
+    username = request.form.get("username", "").strip()
+    otp_entered = request.form.get("otp", "").strip()
+    
+    conn = get_db_connection()
+    # Get the latest unused OTP for this user
+    otp_record = pd.read_sql_query(
+        "SELECT * FROM otp_requests WHERE username = ? AND used = 0 ORDER BY id DESC LIMIT 1",
+        conn, params=(username,)
+    )
+    
+    if otp_record.empty:
+        conn.close()
+        return render_template("change_credentials.html", step=2, username=username, error="No OTP found. Please request a new one.")
+    
+    stored_otp = otp_record.iloc[0]["otp_code"]
+    created_at = datetime.strptime(otp_record.iloc[0]["created_at"], "%Y-%m-%d %H:%M:%S")
+    
+    # Check expiry (5 minutes)
+    if datetime.now() - created_at > timedelta(minutes=5):
+        conn.close()
+        return render_template("change_credentials.html", step=1, error="OTP has expired. Please request a new one.")
+    
+    if otp_entered != str(stored_otp):
+        conn.close()
+        return render_template("change_credentials.html", step=2, username=username, error="Invalid OTP. Please try again.")
+    
+    # Mark OTP as used
+    cursor = conn.cursor()
+    cursor.execute("UPDATE otp_requests SET used = 1 WHERE id = ?", (int(otp_record.iloc[0]["id"]),))
+    conn.commit()
+    conn.close()
+    
+    # Store verification in session for the update step
+    session["otp_verified_user"] = username
+    
+    return render_template("change_credentials.html", step=3, username=username)
+
+
+@app.route("/update_credentials", methods=["POST"])
+def update_credentials():
+    """Step 3: User sets new username and password after OTP verification."""
+    verified_user = session.get("otp_verified_user")
+    if not verified_user:
+        return render_template("change_credentials.html", step=1, error="Session expired. Please start over.")
+    
+    new_username = request.form.get("new_username", "").strip()
+    new_password = request.form.get("new_password", "").strip()
+    confirm_password = request.form.get("confirm_password", "").strip()
+    
+    if not new_username or not new_password:
+        return render_template("change_credentials.html", step=3, username=verified_user, error="Username and password cannot be empty.")
+    
+    if new_password != confirm_password:
+        return render_template("change_credentials.html", step=3, username=verified_user, error="Passwords do not match.")
+    
+    conn = get_db_connection()
+    
+    # Check if new username already exists (and is different from current)
+    if new_username != verified_user:
+        existing = pd.read_sql_query("SELECT * FROM users WHERE username = ?", conn, params=(new_username,))
+        if not existing.empty:
+            conn.close()
+            return render_template("change_credentials.html", step=3, username=verified_user, error="Username already taken. Choose a different one.")
+    
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET username = ?, password = ? WHERE username = ?",
+                   (new_username, new_password, verified_user))
+    
+    # Also update faculty_classes if this was a faculty user
+    cursor.execute("UPDATE faculty_classes SET faculty_username = ? WHERE faculty_username = ?",
+                   (new_username, verified_user))
+    
+    # Also update MentorID in attendance if this was a mentor
+    cursor.execute("UPDATE attendance SET MentorID = ? WHERE MentorID = ?",
+                   (new_username, verified_user))
+    
+    conn.commit()
+    conn.close()
+    
+    # Clear the verification session
+    session.pop("otp_verified_user", None)
+    
+    return render_template("login.html", error=None, success=f"Credentials updated! Login with your new username '{new_username}'.")
 
 
 # ---- MAIN APP ROUTES ---- #
@@ -98,6 +484,148 @@ def run_pipeline():
     except Exception as e:
         return f"Pipeline Error: {e}", 500
 
+# ---- REST API ENDPOINTS ---- #
+
+@app.route("/api/upload", methods=["POST"])
+def api_upload_csv():
+    """
+    Accepts a CSV upload for attendance records.
+    Expected columns: student_id, date, subject, status
+    """
+    if "file" not in request.files:
+        return {"error": "No file part in the request"}, 400
+        
+    file = request.files["file"]
+    if file.filename == "":
+        return {"error": "No selected file"}, 400
+        
+    if file and file.filename.endswith(".csv"):
+        try:
+            df = pd.read_csv(file)
+            required_cols = ["student_id", "date", "subject", "status"]
+            
+            # Check if required columns exist
+            if not all(col in df.columns for col in required_cols):
+                return {"error": f"Missing required columns. Expected: {required_cols}"}, 400
+            
+            # Map prompt-specific columns to DB schema
+            df = df.rename(columns={
+                "student_id": "StudentID",
+                "date": "Date",
+                # "subject": "Section"  <- REMOVED
+            })
+            if "subject" in df.columns:
+                df = df.rename(columns={"subject": "Subject"})
+            elif "Section" not in df.columns:
+                return {"error": "Missing 'subject' or 'Section' column"}, 400
+            
+            # Map status ('Present'/'Absent' or 1/0) to Present (1/0)
+            if df["status"].dtype == object:
+                df["Present"] = df["status"].str.lower().map({"present": 1, "absent": 0, "p": 1, "a": 0})
+            else:
+                df["Present"] = df["status"]
+            
+            df = df.drop(columns=["status"])
+            
+            conn = get_db_connection()
+            
+            # Minimal Preprocessing
+            if "Anomaly" not in df.columns: df["Anomaly"] = 0
+            if "Parent_Notified" not in df.columns: df["Parent_Notified"] = 0
+            if "Mentor_Nudged" not in df.columns: df["Mentor_Nudged"] = 0
+            if "Rolling_Attendance" not in df.columns: df["Rolling_Attendance"] = df["Present"] # Dummy init
+            if "Absence_Streak" not in df.columns: df["Absence_Streak"] = (df["Present"] == 0).astype(int)
+            if "Semester_Attendance" not in df.columns: df["Semester_Attendance"] = df["Present"]
+            if "Attendance_Trend" not in df.columns: df["Attendance_Trend"] = 0.0
+            
+            df.to_sql("attendance", conn, if_exists="append", index=False)
+            conn.close()
+            
+            return {"message": f"Successfully uploaded {len(df)} records."}, 200
+            
+        except Exception as e:
+            return {"error": str(e)}, 500
+    else:
+        return {"error": "Invalid file type. Please upload a CSV."}, 400
+
+@app.route("/api/predict", methods=["GET"])
+def api_predict():
+    """
+    Runs prediction on all students and returns the JSON payload.
+    """
+    if not model:
+        return {"error": "Model not loaded."}, 500
+        
+    conn = get_db_connection()
+    query = """
+    SELECT a.*
+    FROM attendance a
+    INNER JOIN (
+        SELECT StudentID, Subject, MAX(Date) as MaxDate
+        FROM attendance
+        GROUP BY StudentID, Subject
+    ) b ON a.StudentID = b.StudentID AND a.Subject = b.Subject AND a.Date = b.MaxDate
+    """
+    try:
+        latest_df = pd.read_sql_query(query, conn)
+    except Exception as e:
+        return {"error": str(e)}, 500
+    finally:
+        conn.close()
+        
+    predictions = []
+    if not latest_df.empty:
+        grouped = latest_df.groupby("StudentID")
+        for student_id, group in grouped:
+            subject_probs = []
+            for _, row in group.iterrows():
+                features = np.array([[
+                    row.get("Rolling_Attendance", 0),
+                    row.get("Absence_Streak", 0),
+                    row.get("Semester_Attendance", 0),
+                    row.get("Attendance_Trend", 0)
+                ]])
+                try:
+                    p = model.predict_proba(features)[0][1] if model else 0.0
+                except Exception as e:
+                    print(f"Prediction error for student {student_id}: {e}")
+                    p = 0.0
+                subject_probs.append(p)
+                
+            avg_prob = np.mean(subject_probs)
+            predictions.append({
+                "StudentID": student_id,
+                "RiskScore": round(avg_prob, 3),
+                "HighRisk": bool(avg_prob > 0.75)
+            })
+            
+    return {"predictions": predictions, "message": "Prediction successful (aggregated across subjects)"}, 200
+
+@app.route("/api/anomalies", methods=["GET"])
+def api_anomalies():
+    """
+    Returns a list of students flagged as anomalous by DBSCAN.
+    """
+    conn = get_db_connection()
+    try:
+        query = """
+        SELECT a.StudentID, a.Student_Name, a.Date, a.Section 
+        FROM attendance a
+        INNER JOIN (
+            SELECT StudentID, MAX(Date) as MaxDate
+            FROM attendance
+            GROUP BY StudentID
+        ) b ON a.StudentID = b.StudentID AND a.Date = b.MaxDate
+        WHERE a.Anomaly = 1
+        """
+        anomalies_df = pd.read_sql_query(query, conn)
+        return {"anomalies": anomalies_df.to_dict(orient="records")}, 200
+    except Exception as e:
+        return {"error": str(e)}, 500
+    finally:
+        conn.close()
+
+
 
 @app.route("/faculty_dashboard", methods=["GET", "POST"])
 @login_required(role="faculty")
@@ -109,6 +637,7 @@ def faculty_dashboard():
     if request.method == "POST":
         section = request.form.get("section")
         date = request.form.get("date")
+        subject = request.form.get("subject")
         
         cursor = conn.cursor()
         success_count = 0
@@ -119,7 +648,7 @@ def faculty_dashboard():
                 student_id = key.split("_")[1]
                 present_val = int(value)
                 
-                prev_data = pd.read_sql_query("SELECT * FROM attendance WHERE StudentID = ? ORDER BY Date DESC LIMIT 1", conn, params=(student_id,))
+                prev_data = pd.read_sql_query("SELECT * FROM attendance WHERE StudentID = ? AND Subject = ? ORDER BY Date DESC LIMIT 1", conn, params=(student_id, subject))
                 
                 if not prev_data.empty:
                     row = prev_data.iloc[0].to_dict()
@@ -146,39 +675,43 @@ def faculty_dashboard():
                     success_count += 1
                     
         conn.commit()
-        msg = f"Successfully marked attendance for {success_count} students in Section {section}."
+        msg = f"Successfully marked attendance for {success_count} students in Section {section} for {subject}."
     else:
         msg = None
 
     # Retrieve allotted classes for the logged-in faculty
-    classes_df = pd.read_sql_query("SELECT section, time_slot FROM faculty_classes WHERE faculty_username = ?", conn, params=(faculty_user,))
+    classes_df = pd.read_sql_query("SELECT subject, section, time_slot FROM faculty_classes WHERE faculty_username = ?", conn, params=(faculty_user,))
     classes = classes_df.to_dict(orient="records")
     
     # Retrieve all student names and sections relevant to these classes
     if not classes_df.empty:
         sections = tuple(classes_df["section"].tolist())
-        # Use simple string formatting since it's an internal admin tool, or generate parameterized `?, ?` string
+        subject = classes_df.iloc[0]["subject"]  # Faculty maps to 1 subject
+        
         placeholders = ','.join('?' * len(sections))
         
-        # We query the distinct students using a subquery that finds their latest record structure
+        # We query the distinct students using a subquery that finds their latest record structure for this Subject
         students_query = f"""
         SELECT a.StudentID, a.Student_Name, a.Section 
         FROM attendance a
         INNER JOIN (
             SELECT StudentID, MAX(Date) as MaxDate
             FROM attendance
-            WHERE Section IN ({placeholders})
+            WHERE Section IN ({placeholders}) AND Subject = ?
             GROUP BY StudentID
         ) b ON a.StudentID = b.StudentID AND a.Date = b.MaxDate
+        WHERE a.Subject = ?
         ORDER BY a.StudentID ASC
         """
-        students_df = pd.read_sql_query(students_query, conn, params=sections)
+        params = list(sections) + [subject, subject]
+        students_df = pd.read_sql_query(students_query, conn, params=params)
         students = students_df.to_dict(orient="records")
     else:
         students = []
+        subject = None
 
     conn.close()
-    return render_template("faculty_dashboard.html", faculty_id=faculty_user, classes=classes, all_students=students, message=msg)
+    return render_template("faculty_dashboard.html", faculty_id=faculty_user, subject=subject, classes=classes, all_students=students, message=msg)
 
 
 @app.route("/dashboard")
@@ -197,15 +730,15 @@ def dashboard():
     if selected_section == "All":
         selected_section = None
     
-    # Base query for latest records per student
+    # Base query for latest records per student (now 7 records per student, 1 for each subject)
     query = """
     SELECT a.*
     FROM attendance a
     INNER JOIN (
-        SELECT StudentID, MAX(Date) as MaxDate
+        SELECT StudentID, Subject, MAX(Date) as MaxDate
         FROM attendance
-        GROUP BY StudentID
-    ) b ON a.StudentID = b.StudentID AND a.Date = b.MaxDate
+        GROUP BY StudentID, Subject
+    ) b ON a.StudentID = b.StudentID AND a.Subject = b.Subject AND a.Date = b.MaxDate
     """
     
     params = ()
@@ -223,57 +756,69 @@ def dashboard():
 
     risk_summary = []
 
-    for _, row in latest_df.iterrows():
-        features = np.array([[
-            row.get("Rolling_Attendance", 0),
-            row.get("Absence_Streak", 0),
-            row.get("Semester_Attendance", 0),
-            row.get("Attendance_Trend", 0)
-        ]])
+    if not latest_df.empty:
+        # Group by student to aggregate the 7 subject scores
+        grouped_students = latest_df.groupby("StudentID")
+        
+        for student_id, group in grouped_students:
+            subject_probs = []
+            
+            for _, row in group.iterrows():
+                features = np.array([[
+                    row.get("Rolling_Attendance", 0),
+                    row.get("Absence_Streak", 0),
+                    row.get("Semester_Attendance", 0),
+                    row.get("Attendance_Trend", 0)
+                ]])
+                try:
+                    p = model.predict_proba(features)[0][1] if model else 0.0
+                except IndexError:
+                    p = 0.0
+                subject_probs.append(p)
 
-        probability = model.predict_proba(features)[0][1] if model else 0.0
+            # Average metrics across all 7 subjects
+            avg_prob = np.mean(subject_probs)
+            avg_semester_att = group["Semester_Attendance"].mean()
+            avg_trend = group["Attendance_Trend"].mean()
+            has_anomaly = group["Anomaly"].max() == 1
+            has_notified = group["Parent_Notified"].max() == 1
 
-        semester_att = row["Semester_Attendance"]
-        trend = row["Attendance_Trend"]
-        anomaly = row.get("Anomaly", 0)
-        notified = row.get("Parent_Notified", 0)
+            # ---- Determine Overall Risk Level ----
+            if avg_semester_att < 0.70:
+                risk_level = "High Risk"
+            elif avg_semester_att < 0.75 and avg_trend < -0.15:
+                risk_level = "High Risk"
+            elif avg_trend < -0.15:
+                risk_level = "Watchlist"
+            elif avg_prob > 0.85:
+                risk_level = "Watchlist"
+            else:
+                risk_level = "Safe"
 
-        # ---- Determine Risk Level ----
-        if semester_att < 0.70:
-            risk_level = "High Risk"
-        elif semester_att < 0.75 and trend < -0.15:
-            risk_level = "High Risk"
-        elif trend < -0.15:
-            risk_level = "Watchlist"
-        elif probability > 0.85:
-            risk_level = "Watchlist"
-        else:
-            risk_level = "Safe"
+            # ---- Determine Recommended Action ----
+            if has_anomaly:
+                action = "URGENT (ANOMALY): Verify Medical/Emergency"
+            elif risk_level == "High Risk" and avg_trend < -0.3:
+                action = "URGENT: Contact Parent + Mentor Meeting"
+            elif risk_level == "High Risk":
+                action = "Schedule Counseling Session"
+            elif risk_level == "Watchlist":
+                action = "Send Advisory Warning"
+            else:
+                action = "No Action Required"
 
-        # ---- Determine Recommended Action ----
-        if anomaly == 1:
-            action = "URGENT (ANOMALY): Verify Medical/Emergency"
-        elif risk_level == "High Risk" and trend < -0.3:
-            action = "URGENT: Contact Parent + Mentor Meeting"
-        elif risk_level == "High Risk":
-            action = "Schedule Counseling Session"
-        elif risk_level == "Watchlist":
-            action = "Send Advisory Warning"
-        else:
-            action = "No Action Required"
+            risk_summary.append({
+                "StudentID": student_id,
+                "Semester_Attendance": round(avg_semester_att, 2),
+                "Trend": round(avg_trend, 3),
+                "Probability": round(avg_prob, 2),
+                "Risk_Level": risk_level,
+                "Anomaly": has_anomaly,
+                "Notified": "Yes" if has_notified else "No",
+                "Action": action
+            })
 
-        risk_summary.append({
-            "StudentID": row["StudentID"],
-            "Semester_Attendance": round(semester_att, 2),
-            "Trend": round(trend, 3),
-            "Probability": round(probability, 2),
-            "Risk_Level": risk_level,
-            "Anomaly": bool(anomaly),
-            "Notified": "Yes" if notified else "No",
-            "Action": action
-        })
-
-    risk_df = pd.DataFrame(risk_summary) if risk_summary else pd.DataFrame(columns=["Risk_Level"])
+    risk_df = pd.DataFrame(risk_summary) if risk_summary else pd.DataFrame(columns=["Risk_Level", "Anomaly"])
 
     high_risk = risk_df[risk_df["Risk_Level"] == "High Risk"]
     watchlist = risk_df[risk_df["Risk_Level"] == "Watchlist"]
@@ -456,11 +1001,11 @@ def mentor_dashboard(mentor_id):
     SELECT a.*
     FROM attendance a
     INNER JOIN (
-        SELECT StudentID, MAX(Date) as MaxDate
+        SELECT StudentID, Subject, MAX(Date) as MaxDate
         FROM attendance
         WHERE MentorID = ?
-        GROUP BY StudentID
-    ) b ON a.StudentID = b.StudentID AND a.Date = b.MaxDate
+        GROUP BY StudentID, Subject
+    ) b ON a.StudentID = b.StudentID AND a.Subject = b.Subject AND a.Date = b.MaxDate
     """
     try:
         mentor_students = pd.read_sql_query(query, conn, params=(mentor_id,))
@@ -472,55 +1017,66 @@ def mentor_dashboard(mentor_id):
 
     risk_summary = []
 
-    for _, row in mentor_students.iterrows():
-        features = np.array([[
-            row["Rolling_Attendance"],
-            row["Absence_Streak"],
-            row["Semester_Attendance"],
-            row["Attendance_Trend"]
-        ]])
+    if not mentor_students.empty:
+        grouped_students = mentor_students.groupby("StudentID")
+        
+        for student_id, group in grouped_students:
+            subject_probs = []
+            
+            for _, row in group.iterrows():
+                features = np.array([[
+                    row["Rolling_Attendance"],
+                    row["Absence_Streak"],
+                    row["Semester_Attendance"],
+                    row["Attendance_Trend"]
+                ]])
 
-        probability = model.predict_proba(features)[0][1] if model else 0.0
+                try:
+                    p = model.predict_proba(features)[0][1] if model else 0.0
+                except IndexError:
+                    p = 0.0
+                subject_probs.append(p)
 
-        semester_att = row["Semester_Attendance"]
-        trend = row["Attendance_Trend"]
-        anomaly = row.get("Anomaly", 0)
-        nudged = row.get("Mentor_Nudged", 0)
+            avg_prob = np.mean(subject_probs)
+            avg_semester_att = group["Semester_Attendance"].mean()
+            avg_trend = group["Attendance_Trend"].mean()
+            has_anomaly = group["Anomaly"].max() == 1
+            has_nudged = group["Mentor_Nudged"].max() == 1
 
-        if semester_att < 0.70:
-            risk_level = "High Risk"
-        elif semester_att < 0.75 and trend < -0.15:
-            risk_level = "High Risk"
-        elif trend < -0.15:
-            risk_level = "Watchlist"
-        elif probability > 0.85:
-            risk_level = "Watchlist"
-        else:
-            risk_level = "Safe"
+            if avg_semester_att < 0.70:
+                risk_level = "High Risk"
+            elif avg_semester_att < 0.75 and avg_trend < -0.15:
+                risk_level = "High Risk"
+            elif avg_trend < -0.15:
+                risk_level = "Watchlist"
+            elif avg_prob > 0.85:
+                risk_level = "Watchlist"
+            else:
+                risk_level = "Safe"
 
-        if anomaly == 1:
-            action = "URGENT (ANOMALY): Please coordinate with parents immediately."
-        elif nudged == 1:
-            action = "ACTION REQUIRED: Automated Intervention Triggered. Please check in with student."
-        elif risk_level == "High Risk" and trend < -0.3:
-            action = "URGENT: Schedule Meeting"
-        elif risk_level == "High Risk":
-            action = "Schedule Counseling Session"
-        elif risk_level == "Watchlist":
-            action = "Send Advisory Warning"
-        else:
-            action = "No Action Required"
+            if has_anomaly:
+                action = "URGENT (ANOMALY): Please coordinate with parents immediately."
+            elif has_nudged:
+                action = "ACTION REQUIRED: Automated Intervention Triggered. Please check in with student."
+            elif risk_level == "High Risk" and avg_trend < -0.3:
+                action = "URGENT: Schedule Meeting"
+            elif risk_level == "High Risk":
+                action = "Schedule Counseling Session"
+            elif risk_level == "Watchlist":
+                action = "Send Advisory Warning"
+            else:
+                action = "No Action Required"
 
-        risk_summary.append({
-            "StudentID": row["StudentID"],
-            "Semester_Attendance": round(row["Semester_Attendance"], 2),
-            "Trend": round(row["Attendance_Trend"], 3),
-            "Probability": round(probability, 2),
-            "Risk_Level": risk_level,
-            "Anomaly": bool(anomaly),
-            "Nudged": bool(nudged),
-            "Action": action   
-        })
+            risk_summary.append({
+                "StudentID": student_id,
+                "Semester_Attendance": round(avg_semester_att, 2),
+                "Trend": round(avg_trend, 3),
+                "Probability": round(avg_prob, 2),
+                "Risk_Level": risk_level,
+                "Anomaly": has_anomaly,
+                "Nudged": has_nudged,
+                "Action": action   
+            })
 
     return render_template(
         "mentor_dashboard.html",
