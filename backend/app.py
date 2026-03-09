@@ -78,10 +78,39 @@ def login():
 
         # ---- FACULTY / MENTOR: OTP-based login ----
         if step == "1":
-            # Step 1: username entered — show OTP input
+            # Step 1: username entered — auto-generate and send OTP
+            user_email = user.iloc[0].get("email", "")
+
+            # Invalidate any previous unused OTPs
+            cursor = conn.cursor()
+            cursor.execute("UPDATE login_otps SET used = 1 WHERE username = ? AND used = 0", (username,))
+
+            # Generate new OTP (10 min expiry)
+            otp_code = str(random.randint(100000, 999999))
+            now = datetime.now()
+            created_at = now.strftime("%Y-%m-%d %H:%M:%S")
+            expires_at = (now + timedelta(minutes=10)).strftime("%Y-%m-%d %H:%M:%S")
+
+            cursor.execute(
+                "INSERT INTO login_otps (username, otp_code, created_at, expires_at, used) VALUES (?, ?, ?, ?, 0)",
+                (username, otp_code, created_at, expires_at)
+            )
+            conn.commit()
+
+            # Send OTP via email (or console fallback)
+            if user_email:
+                success, msg = send_otp_email(user_email, otp_code, username)
+                if success:
+                    info_msg = f"OTP sent to {user_email[:3]}***{user_email[user_email.index('@'):]}"
+                else:
+                    info_msg = f"OTP generated (email delivery failed). Check with admin. Code printed to server console."
+            else:
+                # No email configured — print to console
+                print(f"[LOGIN OTP] Username: {username}, OTP: {otp_code} (no email configured)")
+                info_msg = "OTP generated. No email configured — please check with admin or server console."
+
             conn.close()
-            return render_template("login.html", step=2, username=username,
-                                   info="Enter the OTP sent to your registered email by the admin.")
+            return render_template("login.html", step=2, username=username, info=info_msg)
 
         elif step == "2":
             # Step 2: verify OTP
@@ -706,12 +735,90 @@ def faculty_dashboard():
         params = list(sections) + [subject, subject]
         students_df = pd.read_sql_query(students_query, conn, params=params)
         students = students_df.to_dict(orient="records")
+
+        # ---- Mentor View: Compute risk summary for students in these sections ----
+        mentor_query = f"""
+        SELECT a.*
+        FROM attendance a
+        INNER JOIN (
+            SELECT StudentID, Subject, MAX(Date) as MaxDate
+            FROM attendance
+            WHERE Section IN ({placeholders})
+            GROUP BY StudentID, Subject
+        ) b ON a.StudentID = b.StudentID AND a.Subject = b.Subject AND a.Date = b.MaxDate
+        """
+        mentor_params = list(sections)
+        try:
+            mentor_df = pd.read_sql_query(mentor_query, conn, params=mentor_params)
+        except Exception as e:
+            print(f"Error querying mentor data: {e}")
+            mentor_df = pd.DataFrame()
+
+        mentor_risk = []
+        if not mentor_df.empty:
+            grouped = mentor_df.groupby("StudentID")
+            for student_id, group in grouped:
+                subject_probs = []
+                for _, row in group.iterrows():
+                    features = np.array([[
+                        row.get("Rolling_Attendance", 0),
+                        row.get("Absence_Streak", 0),
+                        row.get("Semester_Attendance", 0),
+                        row.get("Attendance_Trend", 0)
+                    ]])
+                    try:
+                        p = model.predict_proba(features)[0][1] if model else 0.0
+                    except (IndexError, Exception):
+                        p = 0.0
+                    subject_probs.append(p)
+
+                avg_prob = np.mean(subject_probs)
+                avg_semester_att = group["Semester_Attendance"].mean()
+                avg_trend = group["Attendance_Trend"].mean()
+                has_anomaly = group["Anomaly"].max() == 1
+                student_name = group.iloc[0].get("Student_Name", student_id)
+                student_section = group.iloc[0].get("Section", "")
+
+                if avg_semester_att < 0.70:
+                    risk_level = "High Risk"
+                elif avg_semester_att < 0.75 and avg_trend < -0.15:
+                    risk_level = "High Risk"
+                elif avg_trend < -0.15:
+                    risk_level = "Watchlist"
+                elif avg_prob > 0.85:
+                    risk_level = "Watchlist"
+                else:
+                    risk_level = "Safe"
+
+                if has_anomaly:
+                    action = "URGENT (ANOMALY): Verify Medical/Emergency"
+                elif risk_level == "High Risk" and avg_trend < -0.3:
+                    action = "URGENT: Contact Parent + Meeting"
+                elif risk_level == "High Risk":
+                    action = "Schedule Counseling Session"
+                elif risk_level == "Watchlist":
+                    action = "Send Advisory Warning"
+                else:
+                    action = "No Action Required"
+
+                mentor_risk.append({
+                    "StudentID": student_id,
+                    "Student_Name": student_name,
+                    "Section": student_section,
+                    "Semester_Attendance": round(avg_semester_att, 2),
+                    "Trend": round(avg_trend, 3),
+                    "Probability": round(avg_prob, 2),
+                    "Risk_Level": risk_level,
+                    "Anomaly": has_anomaly,
+                    "Action": action
+                })
     else:
         students = []
         subject = None
+        mentor_risk = []
 
     conn.close()
-    return render_template("faculty_dashboard.html", faculty_id=faculty_user, subject=subject, classes=classes, all_students=students, message=msg)
+    return render_template("faculty_dashboard.html", faculty_id=faculty_user, subject=subject, classes=classes, all_students=students, message=msg, mentor_students=mentor_risk)
 
 
 @app.route("/dashboard")

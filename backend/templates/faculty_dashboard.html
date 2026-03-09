@@ -334,6 +334,21 @@
         <div class="alert alert-success">{{ message }}</div>
         {% endif %}
 
+        <!-- Tab Navigation -->
+        <div style="display: flex; gap: 0; margin-bottom: 25px; border-bottom: 2px solid #334155;">
+            <button class="tab-btn active" onclick="switchTab('attendance')" id="tab-attendance"
+                style="background: transparent; border: none; color: #38bdf8; padding: 12px 24px; font-size: 16px; font-weight: 600; cursor: pointer; border-bottom: 3px solid #38bdf8; transition: all 0.2s;">
+                📋 Attendance
+            </button>
+            <button class="tab-btn" onclick="switchTab('mentor')" id="tab-mentor"
+                style="background: transparent; border: none; color: #94a3b8; padding: 12px 24px; font-size: 16px; font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s;">
+                📊 Mentor View
+            </button>
+        </div>
+
+        <!-- ========== ATTENDANCE TAB ========== -->
+        <div id="content-attendance">
+
         <h3 style="color:#e2e8f0; margin-bottom:20px;">Assigned Subject: <span style="color:#0ea5e9;">{{ subject }}</span></h3>
 
         <div class="section-grid">
@@ -384,6 +399,84 @@
             </form>
         </div>
         {% endfor %}
+        </div> <!-- end content-attendance -->
+
+        <!-- ========== MENTOR VIEW TAB ========== -->
+        <div id="content-mentor" style="display: none;">
+            <h3 style="color:#e2e8f0; margin-bottom:20px;">📊 Student Risk Overview <span style="color:#94a3b8; font-size:14px; font-weight:normal;">(across all your sections)</span></h3>
+
+            {% if mentor_students %}
+            <!-- Summary Cards -->
+            <div style="display: flex; gap: 15px; margin-bottom: 25px; flex-wrap: wrap;">
+                <div style="background: rgba(239,68,68,0.15); border: 1px solid #ef4444; border-radius: 10px; padding: 15px 25px; flex: 1; min-width: 120px; text-align: center;">
+                    <div style="font-size: 28px; font-weight: 700; color: #ef4444;">{{ mentor_students|selectattr('Risk_Level', 'equalto', 'High Risk')|list|length }}</div>
+                    <div style="color: #fca5a5; font-size: 13px;">High Risk</div>
+                </div>
+                <div style="background: rgba(245,158,11,0.15); border: 1px solid #f59e0b; border-radius: 10px; padding: 15px 25px; flex: 1; min-width: 120px; text-align: center;">
+                    <div style="font-size: 28px; font-weight: 700; color: #f59e0b;">{{ mentor_students|selectattr('Risk_Level', 'equalto', 'Watchlist')|list|length }}</div>
+                    <div style="color: #fcd34d; font-size: 13px;">Watchlist</div>
+                </div>
+                <div style="background: rgba(16,185,129,0.15); border: 1px solid #10b981; border-radius: 10px; padding: 15px 25px; flex: 1; min-width: 120px; text-align: center;">
+                    <div style="font-size: 28px; font-weight: 700; color: #10b981;">{{ mentor_students|selectattr('Risk_Level', 'equalto', 'Safe')|list|length }}</div>
+                    <div style="color: #6ee7b7; font-size: 13px;">Safe</div>
+                </div>
+            </div>
+
+            <!-- Risk Table -->
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                    <thead>
+                        <tr style="background: #1e293b; border-bottom: 2px solid #334155;">
+                            <th style="padding: 12px 10px; text-align: left; color: #94a3b8;">Student</th>
+                            <th style="padding: 12px 10px; text-align: center; color: #94a3b8;">Section</th>
+                            <th style="padding: 12px 10px; text-align: center; color: #94a3b8;">Attendance</th>
+                            <th style="padding: 12px 10px; text-align: center; color: #94a3b8;">Trend</th>
+                            <th style="padding: 12px 10px; text-align: center; color: #94a3b8;">ML Risk</th>
+                            <th style="padding: 12px 10px; text-align: center; color: #94a3b8;">Status</th>
+                            <th style="padding: 12px 10px; text-align: left; color: #94a3b8;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in mentor_students %}
+                        <tr style="border-bottom: 1px solid #1e293b;
+                            {% if s.Anomaly %}background: rgba(239,68,68,0.1); border-left: 3px solid #ef4444;
+                            {% elif s.Risk_Level == 'High Risk' %}background: rgba(239,68,68,0.07);
+                            {% elif s.Risk_Level == 'Watchlist' %}background: rgba(245,158,11,0.07);
+                            {% else %}background: rgba(16,185,129,0.04);{% endif %}">
+                            <td style="padding: 10px;">
+                                <strong style="color: #f1f5f9;">{{ s.Student_Name }}</strong><br>
+                                <span style="color: #64748b; font-size: 12px;">{{ s.StudentID }}</span>
+                                {% if s.Anomaly %}<span style="background: #ef4444; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 5px;">ANOMALY</span>{% endif %}
+                            </td>
+                            <td style="padding: 10px; text-align: center; color: #cbd5e1;">{{ s.Section }}</td>
+                            <td style="padding: 10px; text-align: center; color: {% if s.Semester_Attendance < 0.70 %}#ef4444{% elif s.Semester_Attendance < 0.80 %}#f59e0b{% else %}#10b981{% endif %}; font-weight: 600;">
+                                {{ (s.Semester_Attendance * 100)|round(1) }}%
+                            </td>
+                            <td style="padding: 10px; text-align: center; color: {% if s.Trend < -0.15 %}#ef4444{% elif s.Trend < 0 %}#f59e0b{% else %}#10b981{% endif %};">
+                                {{ s.Trend }}
+                            </td>
+                            <td style="padding: 10px; text-align: center; color: #cbd5e1;">{{ s.Probability }}</td>
+                            <td style="padding: 10px; text-align: center;">
+                                <span style="padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;
+                                    {% if s.Risk_Level == 'High Risk' %}background: rgba(239,68,68,0.2); color: #fca5a5;
+                                    {% elif s.Risk_Level == 'Watchlist' %}background: rgba(245,158,11,0.2); color: #fcd34d;
+                                    {% else %}background: rgba(16,185,129,0.2); color: #6ee7b7;{% endif %}">
+                                    {{ s.Risk_Level }}
+                                </span>
+                            </td>
+                            <td style="padding: 10px; color: #e2e8f0; font-size: 13px;"><strong>{{ s.Action }}</strong></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div style="text-align: center; padding: 40px; color: #64748b;">
+                <p style="font-size: 18px;">No student data available for your sections.</p>
+            </div>
+            {% endif %}
+        </div> <!-- end content-mentor -->
+
     </div>
 
     <!-- Confirmation Modal -->
@@ -422,6 +515,25 @@
     </div>
 
     <script>
+        // ---- Tab Switching ----
+        function switchTab(tabName) {
+            // Hide all tab content
+            document.getElementById('content-attendance').style.display = 'none';
+            document.getElementById('content-mentor').style.display = 'none';
+
+            // Show selected tab content
+            document.getElementById('content-' + tabName).style.display = 'block';
+
+            // Update tab button styles
+            document.getElementById('tab-attendance').style.color = '#94a3b8';
+            document.getElementById('tab-attendance').style.borderBottom = '3px solid transparent';
+            document.getElementById('tab-mentor').style.color = '#94a3b8';
+            document.getElementById('tab-mentor').style.borderBottom = '3px solid transparent';
+
+            document.getElementById('tab-' + tabName).style.color = '#38bdf8';
+            document.getElementById('tab-' + tabName).style.borderBottom = '3px solid #38bdf8';
+        }
+
         // Set today's date
         const today = new Date().toISOString().split('T')[0];
         document.querySelectorAll('input[type="date"]').forEach(el => el.value = today);
