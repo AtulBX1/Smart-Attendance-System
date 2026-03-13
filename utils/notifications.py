@@ -67,7 +67,7 @@ def run_notifications_job():
         is_high_risk = False
         is_watchlist = False
 
-        if semester_att < 0.70 or (semester_att < 0.75 and trend < -0.15):
+        if semester_att < 0.75 or (semester_att < 0.80 and trend < -0.15):
             is_high_risk = True
         elif trend < -0.15 or probability > 0.85:
             is_watchlist = True

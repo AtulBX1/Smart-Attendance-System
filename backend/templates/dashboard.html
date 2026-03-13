@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Admin Risk Dashboard</title>
+    <title>Admin Dashboard — Smart Attendance</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -20,6 +20,9 @@
             align-items: center;
             border-bottom: 1px solid #334155;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
         .navbar h2 {
@@ -33,6 +36,7 @@
             display: flex;
             align-items: center;
             gap: 15px;
+            flex-wrap: wrap;
         }
 
         .dropdown {
@@ -90,6 +94,23 @@
             margin: auto;
         }
 
+        /* Flash message */
+        .flash-msg {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid #10b981;
+            color: #34d399;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 600;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         /* Summary Stats Row */
         .summary-grid {
             display: grid;
@@ -105,7 +126,19 @@
             border: 1px solid #334155;
             text-align: center;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+            transition: all 0.25s ease;
         }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+        }
+
+        .stat-card.card-safe:hover { border-color: #10b981; }
+        .stat-card.card-watch:hover { border-color: #f59e0b; }
+        .stat-card.card-high:hover { border-color: #ef4444; }
+        .stat-card.card-anomaly:hover { border-color: #8b5cf6; }
 
         .stat-card h4 {
             margin: 0 0 10px 0;
@@ -120,21 +153,10 @@
             font-weight: bold;
         }
 
-        .val.safe {
-            color: #10b981;
-        }
-
-        .val.watch {
-            color: #fbbf24;
-        }
-
-        .val.high {
-            color: #f43f5e;
-        }
-
-        .val.anomaly {
-            color: #8b5cf6;
-        }
+        .val.safe { color: #10b981; }
+        .val.watch { color: #fbbf24; }
+        .val.high { color: #f43f5e; }
+        .val.anomaly { color: #8b5cf6; }
 
         /* Tables & Lists */
         .section-block {
@@ -144,6 +166,7 @@
             margin-bottom: 30px;
             overflow: hidden;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+            scroll-margin-top: 80px;
         }
 
         .section-header {
@@ -170,6 +193,12 @@
             background: rgba(251, 191, 36, 0.15);
             color: #fde68a;
             border-bottom-color: rgba(251, 191, 36, 0.3);
+        }
+
+        .header-safe {
+            background: rgba(16, 185, 129, 0.15);
+            color: #6ee7b7;
+            border-bottom-color: rgba(16, 185, 129, 0.3);
         }
 
         table {
@@ -218,17 +247,10 @@
             font-weight: 600;
         }
 
-        .action-anomaly {
-            color: #a78bfa;
-        }
-
-        .action-high {
-            color: #fb7185;
-        }
-
-        .action-watch {
-            color: #fcd34d;
-        }
+        .action-anomaly { color: #a78bfa; }
+        .action-high { color: #fb7185; }
+        .action-watch { color: #fcd34d; }
+        .action-safe { color: #6ee7b7; }
 
         .badge {
             display: inline-block;
@@ -243,13 +265,69 @@
             background: #8b5cf6;
             color: white;
         }
+
+        .badge-safe {
+            background: rgba(16, 185, 129, 0.2);
+            color: #6ee7b7;
+        }
+
+        /* Quick filter pills */
+        .filter-pills {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .pill {
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid #475569;
+            background: transparent;
+            color: #94a3b8;
+            transition: all 0.2s;
+        }
+
+        .pill:hover { background: rgba(255,255,255,0.05); color: #e2e8f0; }
+        .pill.active { color: #fff; }
+        .pill.active-safe { background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #6ee7b7; }
+        .pill.active-watch { background: rgba(245, 158, 11, 0.2); border-color: #f59e0b; color: #fcd34d; }
+        .pill.active-high { background: rgba(239, 68, 68, 0.2); border-color: #ef4444; color: #fca5a5; }
+        .pill.active-anomaly { background: rgba(139, 92, 246, 0.2); border-color: #8b5cf6; color: #c4b5fd; }
+
+        .notification-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .notif-yes {
+            background: rgba(16, 185, 129, 0.2);
+            color: #6ee7b7;
+        }
+
+        .notif-no {
+            background: rgba(239, 68, 68, 0.15);
+            color: #fca5a5;
+        }
+        .flash-msg {
+            padding: 15px 20px; border-radius: 8px; margin-bottom: 10px; 
+            font-weight: 600; font-size: 14px; border-left: 4px solid;
+        }
+        .flash-success { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; border-color: #10b981; }
+        .flash-error { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border-color: #ef4444; }
     </style>
 </head>
 
 <body>
 
     <div class="navbar">
-        <h2>Admin Risk Dashboard</h2>
+        <h2>📊 Admin Dashboard</h2>
         <div class="nav-controls">
 
             <!-- Section Filter -->
@@ -264,51 +342,128 @@
             </div>
 
             <a href="{{ url_for('manage_users') }}" class="btn btn-analytics" style="background: #8b5cf6;">👥 Manage Users</a>
-            <a href="{{ url_for('analytics') }}" class="btn btn-analytics">View Analytics</a>
+            <a href="{{ url_for('analytics') }}" class="btn btn-analytics">📈 Analytics</a>
 
             <form action="{{ url_for('run_pipeline') }}" method="POST" style="margin: 0;">
-                <button type="submit" class="btn btn-run" onclick="return confirm('Trigger nightly ML Pipeline?');">Run
-                    ML Pipeline</button>
+                <button type="submit" class="btn btn-run"
+                    onclick="this.innerText='⏳ Analyzing...'; this.disabled=true; this.form.submit(); return false;">
+                    🔄 Refresh Student Analysis
+                </button>
             </form>
 
             <a href="{{ url_for('logout') }}" class="btn btn-logout">Logout</a>
         </div>
     </div>
 
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div style="max-width: 1200px; margin: 20px auto 0 auto; padding: 0 30px;">
+        {% for msg in messages %}
+        <div class="flash-msg {% if 'success' in msg.lower() or '✅' in msg %}flash-success{% else %}flash-error{% endif %}">
+            {{ msg }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
     <div class="container">
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        {% for msg in messages %}
+        <div class="flash-msg">{{ msg }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- Admin Upload Section -->
+        <div class="section-block" style="padding: 20px; margin-bottom: 30px; display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+            <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 8px;">
+                <h3 style="margin-top: 0; color: #38bdf8;">Upload Student Data</h3>
+                <form action="/admin/upload_student_data" method="POST" enctype="multipart/form-data">
+                    <input type="file" name="file" accept=".csv" required style="margin-bottom: 10px; width: 100%;">
+                    <button type="submit" class="btn btn-run" style="width: 100%;">Upload Students CSV</button>
+                    <p style="font-size: 11px; color: #94a3b8; margin-top: 10px;">Requires: name, registration_no, section, subjects, assigned_mentors, student_email, parent_email</p>
+                </form>
+            </div>
+            
+            <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 8px; display: flex; flex-direction: column; justify-content: center;">
+                <h3 style="margin-top: 0; color: #10b981;">AI Timetable Generator</h3>
+                <form action="/admin/generate_timetable" method="POST">
+                    <button type="submit" class="btn btn-analytics" style="width: 100%; height: 50px; font-size: 16px;">🚀 Generate College Timetable</button>
+                    <ul style="font-size: 11px; color: #94a3b8; margin-top: 10px; padding-left: 20px;">
+                        <li>24 Classes per week / section</li>
+                        <li>Monday to Friday (5 Days)</li>
+                        <li>Slot: 9:00 AM – 5:00 PM</li>
+                    </ul>
+                </form>
+            </div>
+            
+            <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 8px;">
+                <h3 style="margin-top: 0; color: #f59e0b;">Upload Resources for Students</h3>
+                <form action="/admin/upload_admin_file" method="POST" enctype="multipart/form-data">
+                    <input type="file" name="file" required style="margin-bottom: 10px; width: 100%;">
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <input type="text" name="class_name" placeholder="Class (e.g., 10)" required style="flex: 1; padding: 6px; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: white;">
+                        <input type="text" name="section" placeholder="Section (e.g., A)" required style="flex: 1; padding: 6px; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: white;">
+                    </div>
+                    <button type="submit" class="btn" style="background: #f59e0b; width: 100%;">Upload Document</button>
+                </form>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 8px;">
+                <h3 style="margin-top: 0; color: #f43f5e;">Danger Zone</h3>
+                <form action="/admin/reset_students" method="POST" onsubmit="return confirm('⚠️ CRITICAL ACTION: This will permanently delete ALL student records, attendance data, and timetables. This action cannot be undone. Are you sure you want to proceed?')">
+                    <p style="font-size: 13px; color: #94a3b8; margin-bottom: 15px;">Use this to clear existing data before a fresh upload or to resolve registration conflicts.</p>
+                    <button type="submit" class="btn" style="background: #f43f5e; width: 100%; border: 1px solid rgba(0,0,0,0.2);">Reset All Student Data</button>
+                    <p style="font-size: 11px; color: #fca5a5; margin-top: 10px;">Warning: This clears the students, attendance, and timetable tables.</p>
+                </form>
+            </div>
+        </div>
+
+        <!-- Quick Filter Pills -->
+        <div class="filter-pills">
+            <button class="pill active" id="pill-all" onclick="filterSection('all')">📋 All Students</button>
+            <button class="pill" id="pill-safe" onclick="filterSection('section-safe')">✅ Safe ({{ safe_students|length }})</button>
+            <button class="pill" id="pill-watch" onclick="filterSection('section-watch')">⚡ Needs Attention ({{ watchlist|length }})</button>
+            <button class="pill" id="pill-high" onclick="filterSection('section-high')">🔴 Critical ({{ high_risk|length }})</button>
+            <button class="pill" id="pill-anomaly" onclick="filterSection('section-anomaly')">⚠️ Unusual Patterns ({{ anomalies|length }})</button>
+        </div>
 
         <!-- Top Stats Row -->
         <div class="summary-grid">
-            <div class="stat-card">
-                <h4>Safe Students</h4>
-                <div class="val safe">{{ safe_count }}</div>
+            <div class="stat-card card-safe" onclick="filterSection('section-safe')">
+                <h4>✅ Safe Students</h4>
+                <div class="val safe">{{ safe_students|length }}</div>
             </div>
-            <div class="stat-card">
-                <h4>Watchlist</h4>
+            <div class="stat-card card-watch" onclick="filterSection('section-watch')">
+                <h4>⚡ Needs Attention</h4>
                 <div class="val watch">{{ watchlist|length }}</div>
             </div>
-            <div class="stat-card">
-                <h4>High Risk</h4>
+            <div class="stat-card card-high" onclick="filterSection('section-high')">
+                <h4>🔴 Critical</h4>
                 <div class="val high">{{ high_risk|length }}</div>
             </div>
-            <div class="stat-card">
-                <h4>Anomalies</h4>
+            <div class="stat-card card-anomaly" onclick="filterSection('section-anomaly')">
+                <h4>⚠️ Unusual Patterns</h4>
                 <div class="val anomaly">{{ anomalies|length }}</div>
             </div>
         </div>
 
-        <!-- Anomalies Block -->
+        <!-- Unusual Patterns Block -->
         {% if anomalies|length > 0 %}
-        <div class="section-block">
+        <div class="section-block" id="section-anomaly">
             <div class="section-header header-anomaly">
-                🚨 AI Detected Anomalies (Requires Immediate Review)
+                ⚠️ Unusual Patterns — Requires Immediate Review
             </div>
             <table>
                 <thead>
                     <tr>
                         <th>Student</th>
                         <th>Trend Shift</th>
-                        <th>Notified</th>
+                        <th>Parent Notified</th>
                         <th>Recommendation</th>
                     </tr>
                 </thead>
@@ -317,10 +472,14 @@
                     <tr>
                         <td>
                             <a href="/student/{{ student.StudentID }}" class="student-link">{{ student.StudentID }}</a>
-                            <br><span class="badge badge-anomaly">Anomaly</span>
+                            <br><span class="badge badge-anomaly">Unusual Pattern</span>
                         </td>
                         <td>{{ student.Trend }}</td>
-                        <td>{{ student.Notified }}</td>
+                        <td>
+                            <span class="notification-badge {% if student.Notified == 'Yes' %}notif-yes{% else %}notif-no{% endif %}">
+                                {{ student.Notified }}
+                            </span>
+                        </td>
                         <td class="action-text action-anomaly">{{ student.Action }}</td>
                     </tr>
                     {% endfor %}
@@ -329,11 +488,11 @@
         </div>
         {% endif %}
 
-        <!-- High Risk Block -->
+        <!-- Critical Students Block -->
         {% if high_risk|length > 0 %}
-        <div class="section-block">
+        <div class="section-block" id="section-high">
             <div class="section-header header-high">
-                ⚠️ High Risk Students (Critical Intervention Required)
+                🔴 Critical Students — Immediate Intervention Required
             </div>
             <table>
                 <thead>
@@ -341,8 +500,8 @@
                         <th>Student</th>
                         <th>Attendance</th>
                         <th>Trend</th>
-                        <th>Drop-out Prob.</th>
-                        <th>Notified</th>
+                        <th>Risk Score</th>
+                        <th>Parent Notified</th>
                         <th>Recommendation</th>
                     </tr>
                 </thead>
@@ -354,7 +513,11 @@
                         <td>{{ student.Semester_Attendance }}</td>
                         <td>{{ student.Trend }}</td>
                         <td>{{ student.Probability }}</td>
-                        <td>{{ student.Notified }}</td>
+                        <td>
+                            <span class="notification-badge {% if student.Notified == 'Yes' %}notif-yes{% else %}notif-no{% endif %}">
+                                {{ student.Notified }}
+                            </span>
+                        </td>
                         <td class="action-text action-high">{{ student.Action }}</td>
                     </tr>
                     {% endfor %}
@@ -363,11 +526,11 @@
         </div>
         {% endif %}
 
-        <!-- Watchlist Block -->
+        <!-- Needs Attention Block -->
         {% if watchlist|length > 0 %}
-        <div class="section-block">
+        <div class="section-block" id="section-watch">
             <div class="section-header header-watch">
-                👀 Watchlist (Declining Trends)
+                ⚡ Needs Attention — Declining Trends
             </div>
             <table>
                 <thead>
@@ -375,7 +538,7 @@
                         <th>Student</th>
                         <th>Attendance</th>
                         <th>Trend</th>
-                        <th>Drop-out Prob.</th>
+                        <th>Risk Score</th>
                         <th>Recommendation</th>
                     </tr>
                 </thead>
@@ -395,7 +558,73 @@
         </div>
         {% endif %}
 
+        <!-- Safe Students Block -->
+        {% if safe_students|length > 0 %}
+        <div class="section-block" id="section-safe">
+            <div class="section-header header-safe">
+                ✅ Safe Students — Good Standing
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Student</th>
+                        <th>Attendance</th>
+                        <th>Trend</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in safe_students %}
+                    <tr>
+                        <td><a href="/student/{{ student.StudentID }}" class="student-link">{{ student.StudentID }}</a>
+                        </td>
+                        <td style="color: #10b981; font-weight: 600;">{{ student.Semester_Attendance }}</td>
+                        <td>{{ student.Trend }}</td>
+                        <td><span class="badge badge-safe">✅ Safe</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
     </div>
+
+    <script>
+        function filterSection(id) {
+            const sections = ['section-safe', 'section-watch', 'section-high', 'section-anomaly'];
+            const pills = ['pill-safe', 'pill-watch', 'pill-high', 'pill-anomaly', 'pill-all'];
+
+            // Update pills
+            pills.forEach(p => {
+                const el = document.getElementById(p);
+                if (el) el.classList.remove('active');
+            });
+            
+            const activePillId = id === 'all' ? 'pill-all' : id.replace('section-', 'pill-');
+            const activePill = document.getElementById(activePillId);
+            if (activePill) activePill.classList.add('active');
+
+            // Show/Hide sections
+            sections.forEach(s => {
+                const el = document.getElementById(s);
+                if (!el) return;
+                
+                if (id === 'all' || s === id) {
+                    el.style.display = 'block';
+                } else {
+                    el.style.display = 'none';
+                }
+            });
+
+            if (id !== 'all') {
+                const activeEl = document.getElementById(id);
+                if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+    </script>
 
 </body>
 

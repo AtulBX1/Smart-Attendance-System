@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Student Dashboard — Smart Attendance</title>
+    <!-- Include Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background-color: #0f172a;
+            color: #f1f5f9;
+        }
+
+        .navbar {
+            background-color: #1e293b;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .navbar h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #f8fafc;
+        }
+
+        .btn-logout {
+            background: #ef4444;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            color: white;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+
+        .btn-logout:hover {
+            background: #b91c1c;
+        }
+
+        .container {
+            padding: 30px;
+            max-width: 1200px;
+            margin: auto;
+            display: grid;
+            gap: 30px;
+            grid-template-columns: 1fr;
+        }
+
+        @media (min-width: 900px) {
+            .container {
+                grid-template-columns: 1fr 1fr;
+            }
+            .tt-section, .files-section {
+                grid-column: span 2;
+            }
+        }
+
+        .card {
+            background: #1e293b;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+
+        .card h3 {
+            margin-top: 0;
+            color: #38bdf8;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        /* Profile details */
+        .profile-line {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            border-bottom: 1px dashed #334155;
+            padding-bottom: 5px;
+        }
+        .profile-label { color: #94a3b8; font-weight: 600; font-size: 14px; }
+        .profile-val { color: #f8fafc; font-weight: 600; font-size: 15px; text-align: right; }
+
+        /* Timetable grid */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: #0f172a; color: #94a3b8; text-transform: uppercase; font-size: 12px; padding: 12px; text-align: left; }
+        td { padding: 12px; border-bottom: 1px solid #334155; color: #cbd5e1; font-size: 14px; }
+        tr:hover td { background: rgba(255, 255, 255, 0.03); }
+
+        /* Files List */
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid #334155;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            transition: border-color 0.2s;
+        }
+        .file-item:hover { border-color: #38bdf8; }
+        .file-info { display: flex; flex-direction: column; gap: 5px; }
+        .file-name { font-weight: bold; color: #e2e8f0; }
+        .file-date { font-size: 12px; color: #94a3b8; }
+        .btn-download {
+            background: #10b981;
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .btn-download:hover { background: #059669; }
+
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <h2>🎓 Student Dashboard</h2>
+        <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+
+    <div class="container">
+        <!-- Profile info -->
+        <div class="card">
+            <h3>👤 Student Profile</h3>
+            <div class="profile-line">
+                <span class="profile-label">Name</span>
+                <span class="profile-val">{{ student.name }}</span>
+            </div>
+            <div class="profile-line">
+                <span class="profile-label">Registration No</span>
+                <span class="profile-val">{{ student.registration_no }}</span>
+            </div>
+            <div class="profile-line">
+                <span class="profile-label">Class & Section</span>
+                <span class="profile-val">{{ student.class_name }} - {{ student.section }}</span>
+            </div>
+            <div class="profile-line">
+                <span class="profile-label">Mentor</span>
+                <span class="profile-val">{{ student.mentor_name or 'Not Assigned' }}</span>
+            </div>
+        </div>
+
+        <!-- Attendance Chart -->
+        <div class="card">
+            <h3>📊 Subject-wise Attendance</h3>
+            <canvas id="attendanceChart" height="200"></canvas>
+        </div>
+
+        <!-- Timetable -->
+        <div class="card tt-section">
+            <h3 style="color: #f59e0b;">📅 My Timetable</h3>
+            {% if timetable %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Day</th>
+                        <th>Time Slot</th>
+                        <th>Subject</th>
+                        <th>Teacher</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in timetable %}
+                    <tr>
+                        <td style="font-weight: bold; color: #38bdf8;">{{ row.day_of_week }}</td>
+                        <td>{{ row.time_slot }}</td>
+                        <td>{{ row.subject }}</td>
+                        <td>{{ row.teacher }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="color: #94a3b8;">No timetable generated yet.</p>
+            {% endif %}
+        </div>
+
+        <!-- Admin Files -->
+        <div class="card files-section">
+            <h3 style="color: #10b981;">📁 Class Resources & Notices</h3>
+            {% if admin_files %}
+                <div style="display: grid; gap: 10px;">
+                {% for file in admin_files %}
+                <div class="file-item">
+                    <div class="file-info">
+                        <span class="file-name">{{ file.filename }}</span>
+                        <span class="file-date">Uploaded: {{ file.upload_date }}</span>
+                    </div>
+                    <a href="{{ url_for('static', filename=file.filepath) }}" class="btn-download" download>Download</a>
+                </div>
+                {% endfor %}
+                </div>
+            {% else %}
+                <p style="color: #94a3b8;">No resources uploaded for your class yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Chart Setup -->
+    <script>
+        const attData = {{ attendance_data | tojson | safe }};
+        const labels = attData.map(d => d.Subject);
+        const dataPct = attData.map(d => d.attendance_pct);
+        
+        // Color mapping based on pct
+        const bgColors = dataPct.map(pct => {
+            if (pct >= 85) return 'rgba(16, 185, 129, 0.7)'; // Green
+            if (pct >= 75) return 'rgba(56, 189, 248, 0.7)';  // Blue
+            if (pct >= 60) return 'rgba(245, 158, 11, 0.7)';  // Yellow
+            return 'rgba(239, 68, 68, 0.7)';                  // Red
+        });
+        
+        const borderColors = bgColors.map(c => c.replace('0.7', '1'));
+
+        const ctx = document.getElementById('attendanceChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Attendance %',
+                    data: dataPct,
+                    backgroundColor: bgColors,
+                    borderColor: borderColors,
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        grid: { color: '#334155' },
+                        ticks: { color: '#94a3b8' }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#94a3b8' }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let row = attData[context.dataIndex];
+                                return `${row.attendance_pct}% (${row.attended}/${row.total_classes} classes)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+
+</body>
+</html>

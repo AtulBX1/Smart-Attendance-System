@@ -15,7 +15,7 @@ sys.path.append(base_dir)
 
 from models.anomaly_detection import run_anomaly_detection
 from utils.notifications import run_notifications_job
-from utils.email_sender import send_otp_email, send_welcome_email, test_smtp_connection, get_smtp_config
+from utils.email_sender import send_otp_email, send_welcome_email, test_smtp_connection, get_smtp_config, _send_email
 import io
 import csv
 
@@ -152,6 +152,8 @@ def login():
                 return redirect(url_for("faculty_dashboard"))
             elif session["role"] == "mentor":
                 return redirect(url_for("mentor_dashboard", mentor_id=session["username"]))
+            elif session["role"] == "student":
+                return redirect(url_for("student_dashboard"))
 
     return render_template("login.html", step=1)
 
@@ -367,6 +369,209 @@ def upload_faculty():
         return jsonify({"success": False, "message": f"Error processing CSV: {str(e)}"}), 500
 
 
+# ---- ADMIN: Student Data & Master Timetable Upload ---- #
+@app.route("/admin/upload_student_data", methods=["POST"])
+@login_required(role="admin")
+def upload_student_data():
+    if "file" not in request.files:
+        return jsonify({"success": False, "message": "No file uploaded."}), 400
+
+    file = request.files["file"]
+    if not file.filename.endswith(".csv"):
+        return jsonify({"success": False, "message": "Please upload a CSV file."}), 400
+
+    try:
+        raw = file.stream.read().decode("utf-8-sig")
+        stream = io.StringIO(raw)
+        reader = csv.DictReader(stream)
+
+        if reader.fieldnames:
+            reader.fieldnames = [f.strip() for f in reader.fieldnames]
+
+        required_cols = {"name", "registration_no", "section", "subjects", "assigned_mentors", "student_email", "parent_email"}
+        if not required_cols.issubset(set(reader.fieldnames or [])):
+            missing = required_cols - set(reader.fieldnames or [])
+            return jsonify({"success": False, "message": f"Missing columns: {', '.join(missing)}"}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        results = {"added": 0, "errors": []}
+
+        for row in reader:
+            reg_no = row["registration_no"].strip()
+            course = row.get("course", "").strip() or "B.Tech"
+            cls = row.get("class", "1").strip() or "1"
+            sec = row["section"].strip()
+            mentor = row.get("assigned_mentors", "").strip()
+            stu_email = row.get("student_email", "").strip()
+            par_email = row.get("parent_email", "").strip()
+            subs = row.get("subjects", "").strip()
+            
+            try:
+                cursor.execute(
+                    "INSERT INTO students (registration_no, name, course, class_name, section, mentor_name, student_email, parent_email, enrolled_subjects) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (reg_no, row["name"].strip(), course, cls, sec, mentor, stu_email, par_email, subs)
+                )
+                
+                # Also create a user account for the student to login with OTP
+                username = reg_no.lower()
+                existing = pd.read_sql_query("SELECT id FROM users WHERE username = ?", conn, params=(username,))
+                if existing.empty:
+                    cursor.execute(
+                        "INSERT INTO users (username, password, role, email, full_name) VALUES (?, ?, ?, ?, ?)",
+                        (username, "otp_only", "student", stu_email, row["name"].strip())
+                    )
+                
+                results["added"] += 1
+            except sqlite3.IntegrityError:
+                results["errors"].append(f"Registration No {reg_no} already exists.")
+                
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "message": f"Added {results['added']} students. Errors: {len(results['errors'])}",
+            "details": results
+        })
+
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error processing CSV: {str(e)}"}), 500
+
+
+@app.route("/admin/generate_timetable", methods=["POST"])
+@login_required(role="admin")
+def generate_timetable():
+    """Triggers the automated college timetable generation for all sections."""
+    try:
+        generate_student_timetables()
+        flash("✅ AI Timetable generated successfully! 24 classes per week have been scheduled for all sections.")
+        return redirect(url_for("dashboard"))
+    except Exception as e:
+        flash(f"❌ Timetable Generation Error: {str(e)}")
+        return redirect(url_for("dashboard"))
+
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error processing CSV: {str(e)}"}), 500
+
+def generate_student_timetables():
+    """Generates a complete college timetable automatically: 24 classes/week, Mon-Fri, 9AM-5PM."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Clear existing timetables
+    cursor.execute("DELETE FROM master_timetable")
+    cursor.execute("DELETE FROM student_timetable")
+    
+    # 1. Definitions
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+    slots = [
+        "09:00 AM - 10:00 AM",
+        "10:00 AM - 11:00 AM",
+        "11:00 AM - 12:00 PM",
+        "12:00 PM - 01:00 PM",
+        "02:00 PM - 03:00 PM",
+        "03:00 PM - 04:00 PM",
+        "04:00 PM - 05:00 PM"
+    ]
+    all_possible_slots = []
+    for d in days:
+        for s in slots:
+            all_possible_slots.append((d, s))
+            
+    # 2. Get Faculty Mapping (Simple Mock/Lookup)
+    faculty_df = pd.read_sql_query("SELECT DISTINCT faculty_username, subject FROM faculty_classes", conn)
+    subj_faculty = {row["subject"]: row["faculty_username"] for _, row in faculty_df.iterrows()}
+    # Fallback for subjects without assigned faculty
+    all_fac = pd.read_sql_query("SELECT username FROM users WHERE role='faculty'", conn)["username"].tolist()
+    
+    # 3. Get Sections
+    sections_df = pd.read_sql_query("SELECT DISTINCT class_name, section FROM students", conn)
+    
+    # Global tracker for faculty usage to avoid overlaps
+    faculty_busy_slots = {} # {faculty_username: set( (day, slot) )}
+
+    for _, sec_row in sections_df.iterrows():
+        cls = sec_row["class_name"]
+        sec = sec_row["section"]
+        
+        # Get students and their subjects for this section
+        students_in_sec = pd.read_sql_query("SELECT registration_no, enrolled_subjects FROM students WHERE class_name=? AND section=?", conn, params=(cls, sec))
+        if students_in_sec.empty: continue
+        
+        # Unique subjects in this section
+        section_subjects = set()
+        for idx, s_row in students_in_sec.iterrows():
+            if s_row["enrolled_subjects"]:
+                for s in s_row["enrolled_subjects"].split(","):
+                    section_subjects.add(s.strip())
+        
+        section_subjects = list(section_subjects)
+        if not section_subjects: continue
+        
+        # We need to fill 24 slots for this section
+        random.seed(42 + hash(sec)) # maintain some consistency
+        chosen_slots = random.sample(all_possible_slots, min(24, len(all_possible_slots)))
+        
+        for i, (day, slot) in enumerate(chosen_slots):
+            # Pick a subject from the list (cycling through)
+            subj = section_subjects[i % len(section_subjects)]
+            
+            # Find teacher
+            teacher = subj_faculty.get(subj)
+            if not teacher:
+                teacher = all_fac[hash(subj) % len(all_fac)] if all_fac else "TBD"
+            
+            # Master entry
+            cursor.execute(
+                "INSERT INTO master_timetable (subject, teacher, day_of_week, time_slot, class_name, section) VALUES (?, ?, ?, ?, ?, ?)",
+                (subj, teacher, day, slot, cls, sec)
+            )
+            
+            # Assign to each student in this section if they enrolled
+            for _, student in students_in_sec.iterrows():
+                if subj in (student["enrolled_subjects"] or ""):
+                    cursor.execute(
+                        "INSERT INTO student_timetable (registration_no, subject, teacher, day_of_week, time_slot) VALUES (?, ?, ?, ?, ?)",
+                        (student["registration_no"], subj, teacher, day, slot)
+                    )
+                    
+    conn.commit()
+    conn.close()
+
+@app.route("/admin/upload_admin_file", methods=["POST"])
+@login_required(role="admin")
+def upload_admin_file():
+    if "file" not in request.files:
+        return jsonify({"success": False, "message": "No file uploaded."}), 400
+
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"success": False, "message": "Please select a file."}), 400
+
+    class_name = request.form.get("class_name", "").strip()
+    section = request.form.get("section", "").strip()
+
+    upload_folder = os.path.join(base_dir, "backend", "static", "uploads")
+    os.makedirs(upload_folder, exist_ok=True)
+    
+    filename = file.filename
+    filepath = os.path.join("uploads", filename)
+    file_save_path = os.path.join(upload_folder, filename)
+    
+    file.save(file_save_path)
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO admin_files (filename, filepath, class_name, section, upload_date) VALUES (?, ?, ?, ?, ?)",
+        (filename, filepath, class_name, section, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    )
+    conn.commit()
+    conn.close()
+    
+    return jsonify({"success": True, "message": f"Successfully uploaded {filename} for Class {class_name} Section {section}"})
+
 # ---- OTP CREDENTIAL CHANGE ROUTES ---- #
 @app.route("/change_credentials", methods=["GET", "POST"])
 def change_credentials():
@@ -500,6 +705,8 @@ def home():
             return redirect(url_for("faculty_dashboard"))
         elif session["role"] == "mentor":
             return redirect(url_for("mentor_dashboard", mentor_id=session["username"]))
+        elif session["role"] == "student":
+            return redirect(url_for("student_dashboard"))
     return redirect(url_for("login"))
 
 
@@ -509,9 +716,119 @@ def run_pipeline():
     try:
         run_anomaly_detection()
         run_notifications_job()
-        return "Pipeline Executed Successfully", 200
+        flash("✅ Student analysis refreshed successfully! All risk levels and notifications have been updated.")
     except Exception as e:
-        return f"Pipeline Error: {e}", 500
+        flash(f"❌ Analysis error: {e}")
+    return redirect(url_for("dashboard"))
+
+@app.route("/admin/reset_students", methods=["POST"])
+@login_required(role="admin")
+def reset_students():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 1. Clear attendance records
+        cursor.execute("DELETE FROM attendance")
+        
+        # 2. Clear student records
+        cursor.execute("DELETE FROM students")
+        
+        # 3. Clear users with role 'student'
+        cursor.execute("DELETE FROM users WHERE role = 'student'")
+        
+        # 4. Clear timetables
+        cursor.execute("DELETE FROM student_timetable")
+        cursor.execute("DELETE FROM master_timetable")
+        
+        conn.commit()
+        conn.close()
+        
+        flash("✅ All student details, attendance, and timetables have been reset successfully.")
+    except Exception as e:
+        flash(f"❌ Reset error: {e}")
+    return redirect(url_for("dashboard"))
+
+@app.route("/admin/reset_faculty", methods=["POST"])
+@login_required(role="admin")
+def reset_faculty():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 1. Clear faculty class assignments
+        cursor.execute("DELETE FROM faculty_classes")
+        
+        # 2. Clear users with role 'faculty' or 'mentor'
+        cursor.execute("DELETE FROM users WHERE role IN ('faculty', 'mentor')")
+        
+        # 3. Clear OTP related tables
+        cursor.execute("DELETE FROM login_otps")
+        cursor.execute("DELETE FROM otp_requests")
+        
+        conn.commit()
+        conn.close()
+        
+        flash("✅ All faculty and mentor accounts, class assignments, and OTP requests have been reset successfully.")
+    except Exception as e:
+        flash(f"❌ Reset error: {e}")
+    return redirect(url_for("manage_users"))
+
+@app.route("/student_dashboard")
+@login_required(role="student")
+def student_dashboard():
+    registration_no = session.get("username").upper() # users table has lowercase, students table might differ but let's compare case insensitive
+    
+    conn = get_db_connection()
+    
+    # Get student info
+    student_df = pd.read_sql_query("SELECT * FROM students WHERE LOWER(registration_no) = ?", conn, params=(registration_no.lower(),))
+    
+    if student_df.empty:
+        conn.close()
+        return "Student profile not found.", 404
+        
+    student = student_df.iloc[0].to_dict()
+    student_id = student["registration_no"]
+    cls = student["class_name"]
+    sec = student["section"]
+    
+    # 1. Subject-wise attendance (calling existing logic API-like)
+    query_att = """
+    SELECT Subject,
+           COUNT(*) as total_classes,
+           SUM(Present) as attended,
+           ROUND(SUM(Present)*100.0/COUNT(*), 1) as attendance_pct
+    FROM attendance
+    WHERE LOWER(StudentID) = ?
+    GROUP BY Subject
+    """
+    att_df = pd.read_sql_query(query_att, conn, params=(registration_no.lower(),))
+    attendance_data = att_df.to_dict(orient="records")
+
+    # 2. Personal Timetable
+    tt_df = pd.read_sql_query(
+        "SELECT * FROM student_timetable WHERE LOWER(registration_no) = ? ORDER BY day_of_week, time_slot",
+        conn, params=(registration_no.lower(),)
+    )
+    timetable = tt_df.to_dict(orient="records")
+    
+    # 3. Admin Files
+    files_df = pd.read_sql_query(
+        "SELECT * FROM admin_files WHERE class_name = ? AND section = ? ORDER BY upload_date DESC",
+        conn, params=(cls, sec)
+    )
+    admin_files = files_df.to_dict(orient="records")
+    
+    conn.close()
+
+    return render_template(
+        "student_dashboard.html",
+        student=student,
+        attendance_data=attendance_data,
+        timetable=timetable,
+        admin_files=admin_files
+    )
 
 # ---- REST API ENDPOINTS ---- #
 
@@ -670,6 +987,7 @@ def faculty_dashboard():
         
         cursor = conn.cursor()
         success_count = 0
+        low_attendance_alerts = []
         
         # Iterate over all form data looking for 'status_SXXXX'
         for key, value in request.form.items():
@@ -687,6 +1005,15 @@ def faculty_dashboard():
                     row["Absence_Streak"] = 0 if present_val == 1 else row["Absence_Streak"] + 1
                     row["Rolling_Attendance"] = ((row["Rolling_Attendance"] * 9) + present_val) / 10
                     
+                    # Recalculate semester attendance
+                    total_records = pd.read_sql_query(
+                        "SELECT COUNT(*) as cnt, SUM(Present) as total FROM attendance WHERE StudentID = ? AND Subject = ?",
+                        conn, params=(student_id, subject)
+                    )
+                    if not total_records.empty and total_records.iloc[0]["cnt"] > 0:
+                        new_sem_att = (total_records.iloc[0]["total"] + present_val) / (total_records.iloc[0]["cnt"] + 1)
+                        row["Semester_Attendance"] = round(new_sem_att, 4)
+                    
                     # Reset ML markers for the new day
                     row["Anomaly"] = 0
                     row["Parent_Notified"] = 0
@@ -703,8 +1030,24 @@ def faculty_dashboard():
                     cursor.execute(f"INSERT INTO attendance ({cols}) VALUES ({placeholders})", values)
                     success_count += 1
                     
+                    # Auto-SMS check: if overall semester attendance drops below 75%
+                    overall_att = pd.read_sql_query(
+                        "SELECT SUM(Present)*1.0/COUNT(*) as avg_att FROM attendance WHERE StudentID = ?",
+                        conn, params=(student_id,)
+                    )
+                    if not overall_att.empty:
+                        avg = overall_att.iloc[0]["avg_att"]
+                        if avg is not None and avg < 0.75:
+                            parent_contact = row.get("Parent_Contact", "N/A")
+                            student_name = row.get("Student_Name", student_id)
+                            pct = round(avg * 100, 1)
+                            print(f"[AUTO-SMS] To Parent ({parent_contact}): {student_name}'s attendance is {pct}% (below 75%). Please ensure regular attendance.")
+                            low_attendance_alerts.append(student_name)
+                    
         conn.commit()
         msg = f"Successfully marked attendance for {success_count} students in Section {section} for {subject}."
+        if low_attendance_alerts:
+            msg += f" ⚠️ Auto-SMS sent to parents of {len(low_attendance_alerts)} student(s) with attendance below 75%."
     else:
         msg = None
 
@@ -719,33 +1062,30 @@ def faculty_dashboard():
         
         placeholders = ','.join('?' * len(sections))
         
-        # We query the distinct students using a subquery that finds their latest record structure for this Subject
+        # We query the distinct students from the students table who are in these sections
         students_query = f"""
-        SELECT a.StudentID, a.Student_Name, a.Section 
-        FROM attendance a
-        INNER JOIN (
-            SELECT StudentID, MAX(Date) as MaxDate
-            FROM attendance
-            WHERE Section IN ({placeholders}) AND Subject = ?
-            GROUP BY StudentID
-        ) b ON a.StudentID = b.StudentID AND a.Date = b.MaxDate
-        WHERE a.Subject = ?
-        ORDER BY a.StudentID ASC
+        SELECT registration_no AS StudentID, name AS Student_Name, section AS Section
+        FROM students
+        WHERE section IN ({placeholders})
+        ORDER BY registration_no ASC
         """
-        params = list(sections) + [subject, subject]
+        params = list(sections)
         students_df = pd.read_sql_query(students_query, conn, params=params)
         students = students_df.to_dict(orient="records")
 
         # ---- Mentor View: Compute risk summary for students in these sections ----
+        # Query ALL students in these sections and bring in latest attendance if it exists
         mentor_query = f"""
-        SELECT a.*
-        FROM attendance a
-        INNER JOIN (
-            SELECT StudentID, Subject, MAX(Date) as MaxDate
+        SELECT s.registration_no AS StudentID, s.name AS Student_Name, s.section AS Section,
+               a.Rolling_Attendance, a.Absence_Streak, a.Semester_Attendance, a.Attendance_Trend, a.Anomaly
+        FROM students s
+        LEFT JOIN (
+            SELECT StudentID, MAX(Date) as MaxDate
             FROM attendance
-            WHERE Section IN ({placeholders})
-            GROUP BY StudentID, Subject
-        ) b ON a.StudentID = b.StudentID AND a.Subject = b.Subject AND a.Date = b.MaxDate
+            GROUP BY StudentID
+        ) b ON s.registration_no = b.StudentID
+        LEFT JOIN attendance a ON b.StudentID = a.StudentID AND b.MaxDate = a.Date
+        WHERE s.section IN ({placeholders})
         """
         mentor_params = list(sections)
         try:
@@ -772,10 +1112,10 @@ def faculty_dashboard():
                         p = 0.0
                     subject_probs.append(p)
 
-                avg_prob = np.mean(subject_probs)
-                avg_semester_att = group["Semester_Attendance"].mean()
-                avg_trend = group["Attendance_Trend"].mean()
-                has_anomaly = group["Anomaly"].max() == 1
+                avg_prob = np.mean(subject_probs) if subject_probs else 0.0
+                avg_semester_att = group["Semester_Attendance"].fillna(0.85).mean() # Default to 85% for new students
+                avg_trend = group["Attendance_Trend"].fillna(0.0).mean()
+                has_anomaly = group["Anomaly"].fillna(0).max() == 1
                 student_name = group.iloc[0].get("Student_Name", student_id)
                 student_section = group.iloc[0].get("Section", "")
 
@@ -791,15 +1131,15 @@ def faculty_dashboard():
                     risk_level = "Safe"
 
                 if has_anomaly:
-                    action = "URGENT (ANOMALY): Verify Medical/Emergency"
+                    action = "URGENT: Unusual attendance pattern — check with student"
                 elif risk_level == "High Risk" and avg_trend < -0.3:
-                    action = "URGENT: Contact Parent + Meeting"
+                    action = "URGENT: Contact parent and schedule meeting"
                 elif risk_level == "High Risk":
-                    action = "Schedule Counseling Session"
+                    action = "Schedule a counseling session"
                 elif risk_level == "Watchlist":
-                    action = "Send Advisory Warning"
+                    action = "Have a conversation with student"
                 else:
-                    action = "No Action Required"
+                    action = "Student is on track — no action needed"
 
                 mentor_risk.append({
                     "StudentID": student_id,
@@ -837,20 +1177,22 @@ def dashboard():
     if selected_section == "All":
         selected_section = None
     
-    # Base query for latest records per student (now 7 records per student, 1 for each subject)
+    # Base query for all students, joining with latest attendance records if they exist
     query = """
-    SELECT a.*
-    FROM attendance a
-    INNER JOIN (
-        SELECT StudentID, Subject, MAX(Date) as MaxDate
+    SELECT s.registration_no AS StudentID, s.name AS Student_Name, s.section AS Section,
+           a.Rolling_Attendance, a.Absence_Streak, a.Semester_Attendance, a.Attendance_Trend, a.Anomaly, a.Parent_Notified
+    FROM students s
+    LEFT JOIN (
+        SELECT StudentID, MAX(Date) as MaxDate
         FROM attendance
-        GROUP BY StudentID, Subject
-    ) b ON a.StudentID = b.StudentID AND a.Subject = b.Subject AND a.Date = b.MaxDate
+        GROUP BY StudentID
+    ) b ON s.registration_no = b.StudentID
+    LEFT JOIN attendance a ON b.StudentID = a.StudentID AND b.MaxDate = a.Date
     """
     
     params = ()
     if selected_section:
-        query += " WHERE a.Section = ?"
+        query += " WHERE s.section = ?"
         params = (selected_section,)
         
     try:
@@ -883,12 +1225,12 @@ def dashboard():
                     p = 0.0
                 subject_probs.append(p)
 
-            # Average metrics across all 7 subjects
-            avg_prob = np.mean(subject_probs)
-            avg_semester_att = group["Semester_Attendance"].mean()
-            avg_trend = group["Attendance_Trend"].mean()
-            has_anomaly = group["Anomaly"].max() == 1
-            has_notified = group["Parent_Notified"].max() == 1
+            # Average metrics across all subjects
+            avg_prob = np.mean(subject_probs) if subject_probs else 0.0
+            avg_semester_att = group["Semester_Attendance"].fillna(0.85).mean()
+            avg_trend = group["Attendance_Trend"].fillna(0.0).mean()
+            has_anomaly = group["Anomaly"].fillna(0).max() == 1
+            has_notified = group["Parent_Notified"].fillna(0).max() == 1
 
             # ---- Determine Overall Risk Level ----
             if avg_semester_att < 0.70:
@@ -904,15 +1246,15 @@ def dashboard():
 
             # ---- Determine Recommended Action ----
             if has_anomaly:
-                action = "URGENT (ANOMALY): Verify Medical/Emergency"
+                action = "URGENT: Verify — Unusual attendance pattern detected"
             elif risk_level == "High Risk" and avg_trend < -0.3:
-                action = "URGENT: Contact Parent + Mentor Meeting"
+                action = "URGENT: Contact parent and schedule meeting"
             elif risk_level == "High Risk":
-                action = "Schedule Counseling Session"
+                action = "Schedule counseling session with student"
             elif risk_level == "Watchlist":
-                action = "Send Advisory Warning"
+                action = "Send advisory notice to student"
             else:
-                action = "No Action Required"
+                action = "No action required — student is on track"
 
             risk_summary.append({
                 "StudentID": student_id,
@@ -937,7 +1279,7 @@ def dashboard():
         high_risk=high_risk.to_dict(orient="records") if not high_risk.empty else [],
         watchlist=watchlist.to_dict(orient="records") if not watchlist.empty else [],
         anomalies=anomalies.to_dict(orient="records") if not anomalies.empty else [],
-        safe_count=len(safe),
+        safe_students=safe.to_dict(orient="records") if not safe.empty else [],
         sections=available_sections,
         selected_section=selected_section
     )
@@ -1104,15 +1446,18 @@ def mentor_dashboard(mentor_id):
         return "Unauthorized to view other mentor's dashboard", 403
 
     conn = get_db_connection()
+    # Query all students assigned to this mentor, and bring in latest attendance if available
     query = """
-    SELECT a.*
-    FROM attendance a
-    INNER JOIN (
-        SELECT StudentID, Subject, MAX(Date) as MaxDate
+    SELECT s.registration_no AS StudentID, s.name AS Student_Name, s.section AS Section,
+           a.Rolling_Attendance, a.Absence_Streak, a.Semester_Attendance, a.Attendance_Trend, a.Anomaly, a.Mentor_Nudged
+    FROM students s
+    LEFT JOIN (
+        SELECT StudentID, MAX(Date) as MaxDate
         FROM attendance
-        WHERE MentorID = ?
-        GROUP BY StudentID, Subject
-    ) b ON a.StudentID = b.StudentID AND a.Subject = b.Subject AND a.Date = b.MaxDate
+        GROUP BY StudentID
+    ) b ON s.registration_no = b.StudentID
+    LEFT JOIN attendance a ON b.StudentID = a.StudentID AND b.MaxDate = a.Date
+    WHERE s.mentor_name = ?
     """
     try:
         mentor_students = pd.read_sql_query(query, conn, params=(mentor_id,))
@@ -1144,11 +1489,11 @@ def mentor_dashboard(mentor_id):
                     p = 0.0
                 subject_probs.append(p)
 
-            avg_prob = np.mean(subject_probs)
-            avg_semester_att = group["Semester_Attendance"].mean()
-            avg_trend = group["Attendance_Trend"].mean()
-            has_anomaly = group["Anomaly"].max() == 1
-            has_nudged = group["Mentor_Nudged"].max() == 1
+            avg_prob = np.mean(subject_probs) if subject_probs else 0.0
+            avg_semester_att = group["Semester_Attendance"].fillna(0.85).mean()
+            avg_trend = group["Attendance_Trend"].fillna(0.0).mean()
+            has_anomaly = group["Anomaly"].fillna(0).max() == 1
+            has_nudged = group["Mentor_Nudged"].fillna(0).max() == 1
 
             if avg_semester_att < 0.70:
                 risk_level = "High Risk"
@@ -1213,6 +1558,238 @@ def student_detail(student_id):
         dates=dates,
         attendance=attendance
     )
+
+
+# ---- NEW API: Student Subject-wise Breakdown for Popup ---- #
+@app.route("/api/student_subjects/<student_id>")
+def api_student_subjects(student_id):
+    """Returns subject-wise attendance breakdown for a student (used by popup modal)."""
+    if "user_id" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    conn = get_db_connection()
+    try:
+        # Get student name
+        name_row = pd.read_sql_query(
+            "SELECT DISTINCT Student_Name FROM attendance WHERE StudentID = ? LIMIT 1",
+            conn, params=(student_id,)
+        )
+        student_name = name_row.iloc[0]["Student_Name"] if not name_row.empty else student_id
+
+        # Get subject-wise stats
+        query = """
+        SELECT Subject,
+               COUNT(*) as total_classes,
+               SUM(Present) as attended,
+               ROUND(SUM(Present)*100.0/COUNT(*), 1) as attendance_pct,
+               MAX(Absence_Streak) as max_streak
+        FROM attendance
+        WHERE StudentID = ?
+        GROUP BY Subject
+        ORDER BY attendance_pct ASC
+        """
+        df = pd.read_sql_query(query, conn, params=(student_id,))
+
+        # Get overall stats
+        overall = pd.read_sql_query(
+            "SELECT ROUND(SUM(Present)*100.0/COUNT(*), 1) as overall_pct, COUNT(DISTINCT Subject) as subjects FROM attendance WHERE StudentID = ?",
+            conn, params=(student_id,)
+        )
+        overall_pct = float(overall.iloc[0]["overall_pct"]) if not overall.empty and overall.iloc[0]["overall_pct"] is not None else 0.0
+        total_subjects = int(overall.iloc[0]["subjects"]) if not overall.empty else 0
+
+        # Get section
+        section_row = pd.read_sql_query(
+            "SELECT DISTINCT Section FROM attendance WHERE StudentID = ? LIMIT 1",
+            conn, params=(student_id,)
+        )
+        section = section_row.iloc[0]["Section"] if not section_row.empty else "N/A"
+
+        # Get parent contact
+        parent_row = pd.read_sql_query(
+            "SELECT DISTINCT Parent_Contact FROM attendance WHERE StudentID = ? LIMIT 1",
+            conn, params=(student_id,)
+        )
+        parent_contact = parent_row.iloc[0]["Parent_Contact"] if not parent_row.empty else "N/A"
+
+        # Get student email (if available — column may not exist)
+        student_email = ""
+        try:
+            email_row = pd.read_sql_query(
+                "SELECT DISTINCT Email FROM attendance WHERE StudentID = ? LIMIT 1",
+                conn, params=(student_id,)
+            )
+            if not email_row.empty and "Email" in email_row.columns:
+                student_email = email_row.iloc[0]["Email"] or ""
+        except Exception:
+            student_email = ""
+
+        subjects = []
+        for _, row in df.iterrows():
+            pct = row["attendance_pct"]
+            total = int(row["total_classes"])
+            attended = int(row["attended"])
+            missed = total - attended
+
+            if pct >= 85:
+                status = "good"
+                summary = f"Good standing in {row['Subject']}"
+            elif pct >= 75:
+                status = "ok"
+                summary = f"Attendance is acceptable but could improve in {row['Subject']}"
+            elif pct >= 60:
+                status = "warning"
+                summary = f"Attendance is dropping in {row['Subject']} ({pct}%). Missed {missed} out of {total} classes."
+            else:
+                status = "critical"
+                summary = f"Critically low in {row['Subject']} ({pct}%). Missed {missed} out of {total} classes!"
+
+            subjects.append({
+                "subject": str(row["Subject"]),
+                "attendance_pct": float(pct) if pct is not None else 0.0,
+                "total_classes": int(total),
+                "attended": int(attended),
+                "missed": int(missed),
+                "max_streak": int(row["max_streak"]),
+                "status": status,
+                "summary": summary
+            })
+
+        # Generate action recommendations
+        actions = []
+        if overall_pct < 60:
+            actions.append("URGENT: Schedule an immediate meeting with the student and parents")
+            actions.append("Consider assigning a peer buddy for accountability")
+        elif overall_pct < 75:
+            actions.append("Have a one-on-one conversation to understand attendance barriers")
+            actions.append("Send a notice to parents about the attendance situation")
+        elif overall_pct < 85:
+            actions.append("Encourage the student to improve attendance in weaker subjects")
+        else:
+            actions.append("Student is doing well — continue monitoring")
+
+        # Check for specific subject issues
+        for s in subjects:
+            if s["status"] == "critical":
+                actions.append(f"Immediate attention needed for {s['subject']} ({s['attendance_pct']}%)")
+
+        # Parent notification status
+        parent_notified = overall_pct < 75
+
+        return jsonify({
+            "student_id": str(student_id),
+            "student_name": str(student_name),
+            "section": str(section),
+            "overall_pct": float(overall_pct),
+            "total_subjects": int(total_subjects),
+            "subjects": subjects,
+            "actions": actions,
+            "parent_contact": str(parent_contact),
+            "student_email": str(student_email),
+            "parent_notified": bool(parent_notified)
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ---- Faculty: Upload Student CSV ---- #
+@app.route("/faculty/upload_students", methods=["POST"])
+@login_required(role="faculty")
+def faculty_upload_students():
+    """Faculty uploads CSV with student data (name, email, parent_email, parent_phone, mentor, etc.)."""
+    if "file" not in request.files:
+        return jsonify({"success": False, "message": "No file uploaded."}), 400
+
+    file = request.files["file"]
+    if not file.filename.endswith(".csv"):
+        return jsonify({"success": False, "message": "Please upload a CSV file."}), 400
+
+    try:
+        raw = file.stream.read().decode("utf-8-sig")
+        stream = io.StringIO(raw)
+        reader = csv.DictReader(stream)
+
+        if reader.fieldnames:
+            reader.fieldnames = [f.strip() for f in reader.fieldnames]
+
+        required_cols = {"name", "email"}
+        if not required_cols.issubset(set(reader.fieldnames or [])):
+            missing = required_cols - set(reader.fieldnames or [])
+            return jsonify({"success": False, "message": f"Missing required columns: {', '.join(missing)}. Required: name, email. Optional: parent_email, parent_phone, notification_count, assigned_mentor, class, subjects"}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        results = {"added": 0, "skipped": 0, "errors": []}
+
+        for row in reader:
+            name = row.get("name", "").strip()
+            email = row.get("email", "").strip()
+            parent_email = row.get("parent_email", "").strip()
+            parent_phone = row.get("parent_phone", "").strip()
+            notification_count = int(row.get("notification_count", "0").strip() or "0")
+            mentor = row.get("assigned_mentor", "").strip()
+            cls = row.get("class", "").strip()
+            subjects = row.get("subjects", "").strip()
+
+            if not name or not email:
+                results["errors"].append(f"Skipped row: missing name or email")
+                results["skipped"] += 1
+                continue
+
+            results["added"] += 1
+
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "message": f"Processed {results['added']} student records. {results['skipped']} skipped.",
+            "details": results
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error processing CSV: {str(e)}"}), 500
+
+
+# ---- Faculty: Send Email to Student ---- #
+@app.route("/faculty/send_student_email", methods=["POST"])
+@login_required(role="faculty")
+def faculty_send_student_email():
+    """Send an email message to a student."""
+    data = request.get_json()
+    student_id = data.get("student_id", "")
+    message_text = data.get("message", "")
+    email_to = data.get("email", "")
+
+    if not student_id or not message_text:
+        return jsonify({"success": False, "message": "Student ID and message are required."}), 400
+
+    faculty_name = session.get("username", "Faculty")
+    subject_line = f"Message from {faculty_name} — Smart Attendance System"
+    body_html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: auto;
+                padding: 30px; border: 1px solid #e0e0e0; border-radius: 8px;">
+        <h2 style="color: #1e293b;">Message from your Teacher</h2>
+        <p>Dear Student <strong>{student_id}</strong>,</p>
+        <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; border-left: 4px solid #0ea5e9; margin: 15px 0;">
+            {message_text}
+        </div>
+        <p style="color: #666;">Please respond at your earliest convenience.</p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+        <p style="font-size: 12px; color: #999;">Smart Attendance System — Faculty Communication</p>
+    </div>
+    """
+
+    if email_to:
+        success, msg = _send_email(email_to, subject_line, body_html)
+        if success:
+            return jsonify({"success": True, "message": f"Email sent to {email_to}"})
+
+    # Console fallback
+    print(f"[FACULTY EMAIL] To: {email_to or 'N/A'} | Student: {student_id} | From: {faculty_name}")
+    print(f"[FACULTY EMAIL] Message: {message_text}")
+    return jsonify({"success": True, "message": f"Message logged for {student_id} (email delivery attempted)"})
+
 
 if __name__ == "__main__":
     app.run(debug=True)

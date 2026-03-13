@@ -64,7 +64,13 @@
 <div class="container">
     <h2>Attendance Risk Dashboard</h2>
 
-    <form action="/predict" method="post">
+    <form action="/login" method="get">
+        <button type="submit" style="background-color: #f59e0b; margin-top: 10px; width: 80%;">👨‍🎓 Student / Faculty Portal</button>
+    </form>
+    
+    <hr style="margin-top: 20px; border-top: 1px solid #ccc;">
+
+    <form action="/predict" method="post" style="margin-top: 20px;">
         <input type="text" name="StudentID" placeholder="Enter Student ID (S0001)" required>
         <br>
         <button type="submit">Check Risk</button>

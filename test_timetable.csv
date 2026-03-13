@@ -1,0 +1,5 @@
+subject,teacher,day_of_week,time_slot,class,section
+Math,fac_math,Monday,09:00 - 10:00,10,A
+Science,fac_science,Monday,10:00 - 11:00,10,A
+History,fac_history,Monday,11:00 - 12:00,10,A
+Math,fac_math,Tuesday,09:00 - 10:00,10,A

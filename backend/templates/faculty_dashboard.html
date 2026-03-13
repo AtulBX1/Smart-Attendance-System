@@ -4,8 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Faculty Attendance Portal</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* Modern Dark Theme Inspired by UMS Reference */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
@@ -21,6 +21,9 @@
             align-items: center;
             border-bottom: 1px solid #334155;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
         .navbar h2 {
@@ -42,11 +45,10 @@
 
         .container {
             padding: 30px;
-            max-width: 1200px;
+            max-width: 1300px;
             margin: auto;
         }
 
-        /* Grid for Sections */
         .section-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -72,24 +74,10 @@
             border-color: #38bdf8;
         }
 
-        .card h3 {
-            margin: 0;
-            font-size: 24px;
-            color: #fff;
-        }
+        .card h3 { margin: 0; font-size: 24px; color: #fff; }
+        .card p { color: #94a3b8; font-size: 14px; margin-top: 5px; }
+        .card.active { border: 2px solid #0ea5e9; background-color: #0f172a; }
 
-        .card p {
-            color: #94a3b8;
-            font-size: 14px;
-            margin-top: 5px;
-        }
-
-        .card.active {
-            border: 2px solid #0ea5e9;
-            background-color: #0f172a;
-        }
-
-        /* Attendance List Styles */
         .attendance-form {
             display: none;
             background: #1e293b;
@@ -98,9 +86,7 @@
             border: 1px solid #334155;
         }
 
-        .attendance-form.active {
-            display: block;
-        }
+        .attendance-form.active { display: block; }
 
         .list-header {
             display: flex;
@@ -109,6 +95,8 @@
             border-bottom: 1px solid #334155;
             padding-bottom: 15px;
             margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         .student-row {
@@ -122,27 +110,11 @@
             border: 1px solid #334155;
         }
 
-        .student-info {
-            display: flex;
-            flex-direction: column;
-        }
+        .student-info { display: flex; flex-direction: column; }
+        .student-name { font-weight: bold; font-size: 16px; color: #fff; }
+        .student-id { font-size: 13px; color: #94a3b8; }
 
-        .student-name {
-            font-weight: bold;
-            font-size: 16px;
-            color: #fff;
-        }
-
-        .student-id {
-            font-size: 13px;
-            color: #94a3b8;
-        }
-
-        /* Radio Buttons */
-        .radio-group {
-            display: flex;
-            gap: 15px;
-        }
+        .radio-group { display: flex; gap: 15px; }
 
         .radio-group label {
             cursor: pointer;
@@ -154,21 +126,9 @@
             transition: all 0.2s;
         }
 
-        .radio-group input[type="radio"] {
-            display: none;
-        }
-
-        .radio-group input[type="radio"]:checked+label.p-label {
-            background-color: #10b981;
-            color: white;
-            border-color: #10b981;
-        }
-
-        .radio-group input[type="radio"]:checked+label.a-label {
-            background-color: #ef4444;
-            color: white;
-            border-color: #ef4444;
-        }
+        .radio-group input[type="radio"] { display: none; }
+        .radio-group input[type="radio"]:checked+label.p-label { background-color: #10b981; color: white; border-color: #10b981; }
+        .radio-group input[type="radio"]:checked+label.a-label { background-color: #ef4444; color: white; border-color: #ef4444; }
 
         .btn-submit {
             background-color: #0ea5e9;
@@ -184,9 +144,7 @@
             transition: background 0.2s;
         }
 
-        .btn-submit:hover {
-            background-color: #0284c7;
-        }
+        .btn-submit:hover { background-color: #0284c7; }
 
         .alert {
             padding: 15px;
@@ -201,14 +159,396 @@
             border: 1px solid #10b981;
         }
 
-        /* Modal Styles */
+        /* Tab and Filter Styles */
+        .tab-bar {
+            display: flex;
+            gap: 0;
+            margin-bottom: 25px;
+            border-bottom: 2px solid #334155;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active { color: #38bdf8; border-bottom-color: #38bdf8; }
+        .tab-btn:hover { color: #e2e8f0; }
+
+        /* Risk Filter Pills */
+        .risk-pills {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .risk-pill {
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid #475569;
+            background: transparent;
+            color: #94a3b8;
+            transition: all 0.2s;
+        }
+
+        .risk-pill:hover { background: rgba(255,255,255,0.05); color: #e2e8f0; }
+        .risk-pill.active { color: #fff; border-color: #38bdf8; background: rgba(56, 189, 248, 0.15); }
+
+        /* Summary Cards */
+        .summary-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .summary-card {
+            border-radius: 10px;
+            padding: 15px 25px;
+            flex: 1;
+            min-width: 120px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .summary-card:hover { transform: translateY(-3px); }
+        .summary-card .count { font-size: 28px; font-weight: 700; }
+        .summary-card .label { font-size: 13px; margin-top: 4px; }
+
+        /* Mentor Student Table */
+        .mentor-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .mentor-table thead tr {
+            background: #1e293b;
+            border-bottom: 2px solid #334155;
+        }
+
+        .mentor-table th {
+            padding: 12px 10px;
+            text-align: left;
+            color: #94a3b8;
+            font-size: 12px;
+            text-transform: uppercase;
+            background: #0f172a;
+        }
+
+        .mentor-table td { padding: 10px; border-bottom: 1px solid #1e293b; }
+
+        .mentor-table .clickable-name {
+            color: #38bdf8;
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .mentor-table .clickable-name:hover { text-decoration: underline; }
+
+        .risk-badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        /* Student Detail Popup Modal */
+        .popup-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            z-index: 2000;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 40px;
+            overflow-y: auto;
+        }
+
+        .popup-overlay.active { display: flex; }
+
+        .popup-modal {
+            background: #1e293b;
+            border-radius: 16px;
+            border: 1px solid #334155;
+            width: 700px;
+            max-width: 95%;
+            max-height: 85vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .popup-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 25px;
+            border-bottom: 1px solid #334155;
+            position: sticky;
+            top: 0;
+            background: #1e293b;
+            z-index: 10;
+        }
+
+        .popup-header h3 { margin: 0; color: #f1f5f9; font-size: 18px; }
+
+        .popup-close {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .popup-close:hover { color: #ef4444; }
+
+        .popup-body { padding: 25px; }
+
+        .popup-stat-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .popup-stat {
+            flex: 1;
+            min-width: 100px;
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            border: 1px solid #334155;
+        }
+
+        .popup-stat .big { font-size: 24px; font-weight: 700; }
+        .popup-stat .small { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+
+        .popup-section-title {
+            font-size: 14px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 20px 0 10px;
+            font-weight: 600;
+        }
+
+        .subject-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            background: #0f172a;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border: 1px solid #334155;
+        }
+
+        .subject-name {
+            width: 100px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #e2e8f0;
+            flex-shrink: 0;
+        }
+
+        .bar-container {
+            flex: 1;
+            background: #334155;
+            border-radius: 6px;
+            height: 20px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.5s ease;
+        }
+
+        .bar-pct {
+            font-size: 13px;
+            font-weight: 700;
+            width: 50px;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .summary-text {
+            font-size: 13px;
+            color: #cbd5e1;
+            background: #0f172a;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 3px solid #38bdf8;
+            margin-bottom: 8px;
+        }
+
+        .action-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: rgba(14, 165, 233, 0.1);
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 13px;
+            color: #7dd3fc;
+        }
+
+        .popup-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .popup-btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-email { background: #0ea5e9; color: white; }
+        .btn-email:hover { background: #0284c7; }
+        .btn-meeting { background: #8b5cf6; color: white; }
+        .btn-meeting:hover { background: #7c3aed; }
+
+        .parent-status {
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 12px;
+        }
+
+        .parent-notified {
+            background: rgba(16, 185, 129, 0.15);
+            color: #6ee7b7;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .parent-will-notify {
+            background: rgba(245, 158, 11, 0.15);
+            color: #fcd34d;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        /* Email compose area */
+        .email-compose {
+            display: none;
+            margin-top: 15px;
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+        }
+
+        .email-compose.active { display: block; }
+
+        .email-compose textarea {
+            width: 100%;
+            min-height: 80px;
+            background: #1e293b;
+            color: #e2e8f0;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 14px;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+
+        .email-compose .send-btn {
+            margin-top: 10px;
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .email-compose .send-btn:hover { background: #059669; }
+
+        /* CSV Upload section */
+        .csv-upload-section {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 25px;
+        }
+
+        .csv-upload-section h4 {
+            color: #e2e8f0;
+            margin-top: 0;
+            margin-bottom: 12px;
+        }
+
+        .csv-upload-area {
+            border: 2px dashed #475569;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .csv-upload-area:hover { border-color: #38bdf8; background: rgba(56, 189, 248, 0.05); }
+
+        .csv-upload-area input[type="file"] { display: none; }
+
+        .upload-btn {
+            background: #0ea5e9;
+            color: white;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+
+        .upload-result {
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 13px;
+            display: none;
+        }
+
+        /* Confirmation Modal */
         .modal-overlay {
             display: none;
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.7);
             z-index: 1000;
             justify-content: center;
@@ -225,96 +565,99 @@
             text-align: left;
         }
 
-        .modal h3 {
-            margin-top: 0;
-            color: #fff;
-            border-bottom: 1px solid #334155;
-            padding-bottom: 15px;
-        }
+        .modal h3 { margin-top: 0; color: #fff; border-bottom: 1px solid #334155; padding-bottom: 15px; }
 
         .modal ul {
-            list-style: none;
-            padding: 0;
-            max-height: 150px;
-            overflow-y: auto;
-            color: #ef4444;
-            font-size: 14px;
-            background: #0f172a;
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px solid #334155;
+            list-style: none; padding: 0;
+            max-height: 150px; overflow-y: auto;
+            color: #ef4444; font-size: 14px;
+            background: #0f172a; padding: 10px;
+            border-radius: 8px; border: 1px solid #334155;
         }
 
-        .modal ul li {
-            padding: 5px 0;
-            border-bottom: 1px solid #1e293b;
-        }
+        .modal ul li { padding: 5px 0; border-bottom: 1px solid #1e293b; }
+        .modal ul li:last-child { border-bottom: none; }
 
-        .modal ul li:last-child {
-            border-bottom: none;
-        }
+        .modal-input-group { margin-top: 15px; display: flex; flex-direction: column; }
+        .modal-input-group label { font-size: 13px; color: #94a3b8; margin-bottom: 5px; }
+        .modal-input-group input { background: #0f172a; color: #fff; border: 1px solid #475569; padding: 10px; border-radius: 8px; font-size: 16px; }
 
-        .modal-input-group {
-            margin-top: 15px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .modal-input-group label {
-            font-size: 13px;
-            color: #94a3b8;
-            margin-bottom: 5px;
-        }
-
-        .modal-input-group input {
-            background: #0f172a;
-            color: #fff;
-            border: 1px solid #475569;
-            padding: 10px;
-            border-radius: 8px;
-            font-size: 16px;
-        }
-
-        .modal-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 15px;
-            margin-top: 25px;
-        }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 15px; margin-top: 25px; }
 
         .btn-cancel {
-            background: transparent;
-            border: 1px solid #475569;
-            color: #94a3b8;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
+            background: transparent; border: 1px solid #475569;
+            color: #94a3b8; padding: 10px 20px;
+            border-radius: 8px; cursor: pointer;
         }
 
-        .btn-cancel:hover {
-            background: #334155;
-            color: #fff;
-        }
+        .btn-cancel:hover { background: #334155; color: #fff; }
 
         .btn-confirm {
-            background: #10b981;
-            border: none;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
+            background: #10b981; border: none;
+            color: white; padding: 10px 20px;
+            border-radius: 8px; cursor: pointer;
             font-weight: bold;
         }
 
-        .btn-confirm:hover {
-            background: #059669;
+        .btn-confirm:hover { background: #059669; }
+
+        .error-msg { color: #ef4444; font-size: 13px; margin-top: 10px; display: none; }
+
+        /* Loading spinner */
+        .spinner {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top: 2px solid #38bdf8;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
         }
 
-        .error-msg {
-            color: #ef4444;
-            font-size: 13px;
-            margin-top: 10px;
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .email-compose {
             display: none;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid var(--border-color);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .email-compose.active {
+            display: block;
+        }
+
+        .email-compose textarea {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.2);
+            color: #fff;
+            resize: vertical;
+            font-family: inherit;
+            margin-bottom: 10px;
+        }
+
+        .email-compose .send-btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            float: right;
+            transition: opacity 0.2s;
+        }
+
+        .email-compose .send-btn:hover {
+            opacity: 0.9;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
         }
     </style>
 </head>
@@ -322,7 +665,7 @@
 <body>
 
     <div class="navbar">
-        <h2>Smart Attendance - Faculty Portal</h2>
+        <h2>Smart Attendance — Faculty Portal</h2>
         <div style="display:flex; align-items:center;">
             <span style="margin-right:20px; color:#94a3b8;">Logged in as: <strong>{{ faculty_id }}</strong></span>
             <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
@@ -335,15 +678,9 @@
         {% endif %}
 
         <!-- Tab Navigation -->
-        <div style="display: flex; gap: 0; margin-bottom: 25px; border-bottom: 2px solid #334155;">
-            <button class="tab-btn active" onclick="switchTab('attendance')" id="tab-attendance"
-                style="background: transparent; border: none; color: #38bdf8; padding: 12px 24px; font-size: 16px; font-weight: 600; cursor: pointer; border-bottom: 3px solid #38bdf8; transition: all 0.2s;">
-                📋 Attendance
-            </button>
-            <button class="tab-btn" onclick="switchTab('mentor')" id="tab-mentor"
-                style="background: transparent; border: none; color: #94a3b8; padding: 12px 24px; font-size: 16px; font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s;">
-                📊 Mentor View
-            </button>
+        <div class="tab-bar">
+            <button class="tab-btn active" onclick="switchTab('attendance')" id="tab-attendance">📋 Attendance</button>
+            <button class="tab-btn" onclick="switchTab('mentor')" id="tab-mentor">👀 My Mentees</button>
         </div>
 
         <!-- ========== ATTENDANCE TAB ========== -->
@@ -360,15 +697,15 @@
             {% endfor %}
         </div>
 
-        <!-- Hidden block that shows when a section is clicked -->
+        <!-- Attendance forms per section -->
         {% for cls in classes %}
         <div id="form-{{ cls.section }}" class="attendance-form">
             <div class="list-header">
                 <h3>Marking Attendance: Section {{ cls.section }} ({{ subject }})</h3>
-                <span style="color:#94a3b8; font-size:14px;">Date: <input type="date" id="date-{{ cls.section }}"
-                        value=""
-                        style="background:#0f172a; color:#fff; border:1px solid #475569; padding:5px; border-radius:4px;"
-                        readonly></span>
+                <span style="color:#94a3b8; font-size:14px;">Date:
+                    <input type="date" id="date-{{ cls.section }}" value=""
+                        style="background:#0f172a; color:#fff; border:1px solid #475569; padding:8px 12px; border-radius:6px; cursor:pointer; font-size:14px;">
+                </span>
             </div>
 
             <form method="POST" action="{{ url_for('faculty_dashboard') }}">
@@ -395,7 +732,7 @@
                 {% endfor %}
 
                 <button type="button" class="btn-submit" onclick="openConfirmationModal('{{ cls.section }}')">Submit
-                    Bulk Attendance for Section {{ cls.section }}</button>
+                    Attendance for Section {{ cls.section }}</button>
             </form>
         </div>
         {% endfor %}
@@ -403,68 +740,77 @@
 
         <!-- ========== MENTOR VIEW TAB ========== -->
         <div id="content-mentor" style="display: none;">
-            <h3 style="color:#e2e8f0; margin-bottom:20px;">📊 Student Risk Overview <span style="color:#94a3b8; font-size:14px; font-weight:normal;">(across all your sections)</span></h3>
+            <h3 style="color:#e2e8f0; margin-bottom:5px;">👀 My Mentees</h3>
+            <p style="color:#64748b; font-size:14px; margin-top:0;">Click on any student name to see their detailed attendance report</p>
 
             {% if mentor_students %}
             <!-- Summary Cards -->
-            <div style="display: flex; gap: 15px; margin-bottom: 25px; flex-wrap: wrap;">
-                <div style="background: rgba(239,68,68,0.15); border: 1px solid #ef4444; border-radius: 10px; padding: 15px 25px; flex: 1; min-width: 120px; text-align: center;">
-                    <div style="font-size: 28px; font-weight: 700; color: #ef4444;">{{ mentor_students|selectattr('Risk_Level', 'equalto', 'High Risk')|list|length }}</div>
-                    <div style="color: #fca5a5; font-size: 13px;">High Risk</div>
+            <div class="summary-row">
+                <div class="summary-card" style="background: rgba(239,68,68,0.15); border: 1px solid #ef4444;" onclick="filterMentor('critical')">
+                    <div class="count" style="color: #ef4444;">{{ mentor_students|selectattr('Risk_Level', 'equalto', 'High Risk')|list|length }}</div>
+                    <div class="label" style="color: #fca5a5;">🔴 Critical</div>
                 </div>
-                <div style="background: rgba(245,158,11,0.15); border: 1px solid #f59e0b; border-radius: 10px; padding: 15px 25px; flex: 1; min-width: 120px; text-align: center;">
-                    <div style="font-size: 28px; font-weight: 700; color: #f59e0b;">{{ mentor_students|selectattr('Risk_Level', 'equalto', 'Watchlist')|list|length }}</div>
-                    <div style="color: #fcd34d; font-size: 13px;">Watchlist</div>
+                <div class="summary-card" style="background: rgba(245,158,11,0.15); border: 1px solid #f59e0b;" onclick="filterMentor('attention')">
+                    <div class="count" style="color: #f59e0b;">{{ mentor_students|selectattr('Risk_Level', 'equalto', 'Watchlist')|list|length }}</div>
+                    <div class="label" style="color: #fcd34d;">⚡ Needs Attention</div>
                 </div>
-                <div style="background: rgba(16,185,129,0.15); border: 1px solid #10b981; border-radius: 10px; padding: 15px 25px; flex: 1; min-width: 120px; text-align: center;">
-                    <div style="font-size: 28px; font-weight: 700; color: #10b981;">{{ mentor_students|selectattr('Risk_Level', 'equalto', 'Safe')|list|length }}</div>
-                    <div style="color: #6ee7b7; font-size: 13px;">Safe</div>
+                <div class="summary-card" style="background: rgba(16,185,129,0.15); border: 1px solid #10b981;" onclick="filterMentor('safe')">
+                    <div class="count" style="color: #10b981;">{{ mentor_students|selectattr('Risk_Level', 'equalto', 'Safe')|list|length }}</div>
+                    <div class="label" style="color: #6ee7b7;">✅ Safe</div>
                 </div>
             </div>
 
-            <!-- Risk Table -->
+            <!-- Filter Pills -->
+            <div class="risk-pills">
+                <button class="risk-pill active" onclick="filterMentor('all')" id="rpill-all">All</button>
+                <button class="risk-pill" onclick="filterMentor('safe')" id="rpill-safe">✅ Safe</button>
+                <button class="risk-pill" onclick="filterMentor('attention')" id="rpill-attention">⚡ Needs Attention</button>
+                <button class="risk-pill" onclick="filterMentor('critical')" id="rpill-critical">🔴 Critical</button>
+                <button class="risk-pill" onclick="filterMentor('unusual')" id="rpill-unusual">⚠️ Unusual Patterns</button>
+            </div>
+
+            <!-- Student Table -->
             <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                <table class="mentor-table">
                     <thead>
-                        <tr style="background: #1e293b; border-bottom: 2px solid #334155;">
-                            <th style="padding: 12px 10px; text-align: left; color: #94a3b8;">Student</th>
-                            <th style="padding: 12px 10px; text-align: center; color: #94a3b8;">Section</th>
-                            <th style="padding: 12px 10px; text-align: center; color: #94a3b8;">Attendance</th>
-                            <th style="padding: 12px 10px; text-align: center; color: #94a3b8;">Trend</th>
-                            <th style="padding: 12px 10px; text-align: center; color: #94a3b8;">ML Risk</th>
-                            <th style="padding: 12px 10px; text-align: center; color: #94a3b8;">Status</th>
-                            <th style="padding: 12px 10px; text-align: left; color: #94a3b8;">Action</th>
+                        <tr>
+                            <th>Student</th>
+                            <th style="text-align:center;">Section</th>
+                            <th style="text-align:center;">Attendance</th>
+                            <th style="text-align:center;">Status</th>
+                            <th>What to do</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="mentor-tbody">
                         {% for s in mentor_students %}
-                        <tr style="border-bottom: 1px solid #1e293b;
-                            {% if s.Anomaly %}background: rgba(239,68,68,0.1); border-left: 3px solid #ef4444;
+                        <tr class="mentor-row" data-risk="{{ s.Risk_Level }}" data-anomaly="{{ s.Anomaly }}"
+                            style="{% if s.Anomaly %}background: rgba(239,68,68,0.1); border-left: 3px solid #ef4444;
                             {% elif s.Risk_Level == 'High Risk' %}background: rgba(239,68,68,0.07);
                             {% elif s.Risk_Level == 'Watchlist' %}background: rgba(245,158,11,0.07);
                             {% else %}background: rgba(16,185,129,0.04);{% endif %}">
-                            <td style="padding: 10px;">
-                                <strong style="color: #f1f5f9;">{{ s.Student_Name }}</strong><br>
+                            <td>
+                                <span class="clickable-name" onclick="openStudentPopup('{{ s.StudentID }}')">
+                                    {{ s.Student_Name }}
+                                </span><br>
                                 <span style="color: #64748b; font-size: 12px;">{{ s.StudentID }}</span>
-                                {% if s.Anomaly %}<span style="background: #ef4444; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 5px;">ANOMALY</span>{% endif %}
+                                {% if s.Anomaly %}<span style="background: #8b5cf6; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 5px;">⚠️ UNUSUAL</span>{% endif %}
                             </td>
-                            <td style="padding: 10px; text-align: center; color: #cbd5e1;">{{ s.Section }}</td>
-                            <td style="padding: 10px; text-align: center; color: {% if s.Semester_Attendance < 0.70 %}#ef4444{% elif s.Semester_Attendance < 0.80 %}#f59e0b{% else %}#10b981{% endif %}; font-weight: 600;">
+                            <td style="text-align: center; color: #cbd5e1;">{{ s.Section }}</td>
+                            <td style="text-align: center; font-weight: 600;
+                                color: {% if s.Semester_Attendance < 0.70 %}#ef4444{% elif s.Semester_Attendance < 0.80 %}#f59e0b{% else %}#10b981{% endif %};">
                                 {{ (s.Semester_Attendance * 100)|round(1) }}%
                             </td>
-                            <td style="padding: 10px; text-align: center; color: {% if s.Trend < -0.15 %}#ef4444{% elif s.Trend < 0 %}#f59e0b{% else %}#10b981{% endif %};">
-                                {{ s.Trend }}
-                            </td>
-                            <td style="padding: 10px; text-align: center; color: #cbd5e1;">{{ s.Probability }}</td>
-                            <td style="padding: 10px; text-align: center;">
-                                <span style="padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;
-                                    {% if s.Risk_Level == 'High Risk' %}background: rgba(239,68,68,0.2); color: #fca5a5;
+                            <td style="text-align: center;">
+                                <span class="risk-badge"
+                                    style="{% if s.Risk_Level == 'High Risk' %}background: rgba(239,68,68,0.2); color: #fca5a5;
                                     {% elif s.Risk_Level == 'Watchlist' %}background: rgba(245,158,11,0.2); color: #fcd34d;
                                     {% else %}background: rgba(16,185,129,0.2); color: #6ee7b7;{% endif %}">
-                                    {{ s.Risk_Level }}
+                                    {% if s.Risk_Level == 'High Risk' %}🔴 Critical
+                                    {% elif s.Risk_Level == 'Watchlist' %}⚡ Needs Attention
+                                    {% else %}✅ Safe{% endif %}
                                 </span>
                             </td>
-                            <td style="padding: 10px; color: #e2e8f0; font-size: 13px;"><strong>{{ s.Action }}</strong></td>
+                            <td style="color: #e2e8f0; font-size: 13px;"><strong>{{ s.Action }}</strong></td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -477,22 +823,22 @@
             {% endif %}
         </div> <!-- end content-mentor -->
 
+        <!-- (Upload Tab Removed) -->
+
     </div>
 
     <!-- Confirmation Modal -->
     <div id="confirmation-modal" class="modal-overlay">
         <div class="modal">
             <h3>Confirm Attendance</h3>
-            <p style="font-size: 14px; color: #94a3b8;">Please verify the absentees by calling their names and confirm
-                the counts.</p>
+            <p style="font-size: 14px; color: #94a3b8;">Please verify the absentees by calling their names and confirm the counts.</p>
 
-            <div
-                style="background: #0f172a; padding: 12px; border-radius: 8px; border: 1px solid #334155; margin: 15px 0; text-align: center;">
-                <span style="color: #94a3b8; font-size: 15px;">Total Students in Section: </span>
+            <div style="background: #0f172a; padding: 12px; border-radius: 8px; border: 1px solid #334155; margin: 15px 0; text-align: center;">
+                <span style="color: #94a3b8; font-size: 15px;">Total Students: </span>
                 <strong id="total-students-count" style="color: #38bdf8; font-size: 20px;">0</strong>
             </div>
 
-            <label style="font-size: 13px; color: #94a3b8; margin-top: 10px; display: block;">List of Absentees:</label>
+            <label style="font-size: 13px; color: #94a3b8; margin-top: 10px; display: block;">Absentees:</label>
             <ul id="absentee-list"></ul>
 
             <div class="modal-input-group">
@@ -514,42 +860,62 @@
         </div>
     </div>
 
+    <!-- Student Detail Popup -->
+    <div id="student-popup" class="popup-overlay">
+        <div class="popup-modal">
+            <div class="popup-header">
+                <h3 id="popup-title">Student Details</h3>
+                <button class="popup-close" onclick="closeStudentPopup()">&times;</button>
+            </div>
+            <div class="popup-body" id="popup-body">
+                <div style="text-align: center; padding: 40px;">
+                    <div class="spinner"></div>
+                    <p style="color: #94a3b8; margin-top: 10px;">Loading student data...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ---- Tab Switching ----
         function switchTab(tabName) {
-            // Hide all tab content
             document.getElementById('content-attendance').style.display = 'none';
             document.getElementById('content-mentor').style.display = 'none';
 
-            // Show selected tab content
             document.getElementById('content-' + tabName).style.display = 'block';
 
-            // Update tab button styles
-            document.getElementById('tab-attendance').style.color = '#94a3b8';
-            document.getElementById('tab-attendance').style.borderBottom = '3px solid transparent';
-            document.getElementById('tab-mentor').style.color = '#94a3b8';
-            document.getElementById('tab-mentor').style.borderBottom = '3px solid transparent';
-
-            document.getElementById('tab-' + tabName).style.color = '#38bdf8';
-            document.getElementById('tab-' + tabName).style.borderBottom = '3px solid #38bdf8';
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                b.classList.remove('active');
+            });
+            document.getElementById('tab-' + tabName).classList.add('active');
         }
 
-        // Set today's date
+        // Set today's date as default, allow picking other dates
         const today = new Date().toISOString().split('T')[0];
-        document.querySelectorAll('input[type="date"]').forEach(el => el.value = today);
+        document.querySelectorAll('input[type="date"]').forEach(el => {
+            el.value = today;
+            el.addEventListener('change', function() {
+                // Update hidden date field for same section
+                const section = this.id.replace('date-', '');
+                const hidden = document.querySelector(`#form-${section} .date-input-hidden`);
+                if (hidden) hidden.value = this.value;
+            });
+        });
         document.querySelectorAll('.date-input-hidden').forEach(el => el.value = today);
 
         function loadSection(sectionName) {
-            // Hide all forms
             document.querySelectorAll('.attendance-form').forEach(el => el.classList.remove('active'));
-            // Show target form
             document.getElementById('form-' + sectionName).classList.add('active');
-
-            // Visual indicator on cards
             document.querySelectorAll('.card').forEach(el => el.classList.remove('active'));
             event.currentTarget.classList.add('active');
+
+            // Sync date
+            const dateInput = document.getElementById('date-' + sectionName);
+            const hidden = document.querySelector(`#form-${sectionName} .date-input-hidden`);
+            if (hidden && dateInput) hidden.value = dateInput.value;
         }
 
+        // ---- Confirmation Modal ----
         let currentFormToSubmit = null;
         let actualPresentCount = 0;
         let actualAbsentCount = 0;
@@ -558,20 +924,20 @@
             const form = document.querySelector(`#form-${section} form`);
             currentFormToSubmit = form;
 
+            // Sync date before showing modal
+            const dateInput = document.getElementById('date-' + section);
+            const hidden = form.querySelector('.date-input-hidden');
+            if (hidden && dateInput) hidden.value = dateInput.value;
+
             const absenteeListEl = document.getElementById('absentee-list');
             absenteeListEl.innerHTML = '';
-
             actualPresentCount = 0;
             actualAbsentCount = 0;
 
             const studentRows = form.querySelectorAll('.student-row');
-
-            // Set total students
-            const totalStudents = studentRows.length;
-            document.getElementById('total-students-count').innerText = totalStudents;
+            document.getElementById('total-students-count').innerText = studentRows.length;
 
             studentRows.forEach(row => {
-                // Determine if absent based on a radio selection. Need to query by value='0'
                 const absentInput = row.querySelector('input[type="radio"][value="0"]');
                 const isAbsent = absentInput && absentInput.checked;
                 const studentName = row.querySelector('.student-name').innerText;
@@ -597,7 +963,6 @@
             document.getElementById('confirm-absent').value = '';
             document.getElementById('confirm-present').value = '';
             document.getElementById('modal-error').style.display = 'none';
-
             document.getElementById('confirmation-modal').style.display = 'flex';
         }
 
@@ -613,13 +978,183 @@
 
             if (enteredAbsent === actualAbsentCount && enteredPresent === actualPresentCount) {
                 errorEl.style.display = 'none';
-                if (currentFormToSubmit) {
-                    currentFormToSubmit.submit();
-                }
+                if (currentFormToSubmit) currentFormToSubmit.submit();
             } else {
                 errorEl.style.display = 'block';
             }
         }
+
+        // ---- Mentor View Filtering ----
+        function filterMentor(filter) {
+            document.querySelectorAll('.risk-pill').forEach(p => p.classList.remove('active'));
+
+            const pillId = 'rpill-' + filter;
+            const pill = document.getElementById(pillId);
+            if (pill) pill.classList.add('active');
+
+            document.querySelectorAll('.mentor-row').forEach(row => {
+                const risk = row.dataset.risk;
+                const anomaly = row.dataset.anomaly === 'True';
+
+                let show = false;
+                if (filter === 'all') show = true;
+                else if (filter === 'safe' && risk === 'Safe') show = true;
+                else if (filter === 'attention' && risk === 'Watchlist') show = true;
+                else if (filter === 'critical' && risk === 'High Risk') show = true;
+                else if (filter === 'unusual' && anomaly) show = true;
+
+                row.style.display = show ? '' : 'none';
+            });
+        }
+
+        // ---- Student Popup ----
+        function openStudentPopup(studentId) {
+            document.getElementById('student-popup').classList.add('active');
+            document.getElementById('popup-title').innerText = 'Loading...';
+            document.getElementById('popup-body').innerHTML = `
+                <div style="text-align: center; padding: 40px;">
+                    <div class="spinner"></div>
+                    <p style="color: #94a3b8; margin-top: 10px;">Loading student data...</p>
+                </div>
+            `;
+
+            fetch(`/api/student_subjects/${studentId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        document.getElementById('popup-body').innerHTML = `<p style="color: #ef4444;">Error: ${data.error}</p>`;
+                        return;
+                    }
+                    renderStudentPopup(data);
+                })
+                .catch(err => {
+                    document.getElementById('popup-body').innerHTML = `<p style="color: #ef4444;">Failed to load data</p>`;
+                });
+        }
+
+        function closeStudentPopup() {
+            document.getElementById('student-popup').classList.remove('active');
+        }
+
+        // Close popup on overlay click
+        document.getElementById('student-popup').addEventListener('click', function(e) {
+            if (e.target === this) closeStudentPopup();
+        });
+
+        function renderStudentPopup(data) {
+            document.getElementById('popup-title').innerText = `${data.student_name} — ${data.student_id}`;
+
+            const overallColor = data.overall_pct >= 85 ? '#10b981' : data.overall_pct >= 75 ? '#f59e0b' : '#ef4444';
+
+            let html = `
+                <div class="popup-stat-row">
+                    <div class="popup-stat">
+                        <div class="big" style="color: ${overallColor};">${data.overall_pct}%</div>
+                        <div class="small">Overall Attendance</div>
+                    </div>
+                    <div class="popup-stat">
+                        <div class="big" style="color: #38bdf8;">${data.total_subjects}</div>
+                        <div class="small">Subjects</div>
+                    </div>
+                    <div class="popup-stat">
+                        <div class="big" style="color: #cbd5e1;">${data.section}</div>
+                        <div class="small">Section</div>
+                    </div>
+                </div>
+
+                <div class="popup-section-title">📊 Subject-wise Attendance</div>
+            `;
+
+            // Subject bars
+            data.subjects.forEach(s => {
+                const color = s.attendance_pct >= 85 ? '#10b981' :
+                              s.attendance_pct >= 75 ? '#f59e0b' :
+                              s.attendance_pct >= 60 ? '#fb923c' : '#ef4444';
+
+                html += `
+                    <div class="subject-bar">
+                        <div class="subject-name">${s.subject}</div>
+                        <div class="bar-container">
+                            <div class="bar-fill" style="width: ${s.attendance_pct}%; background: ${color};"></div>
+                        </div>
+                        <div class="bar-pct" style="color: ${color};">${s.attendance_pct}%</div>
+                    </div>
+                `;
+            });
+
+            // Summaries
+            html += '<div class="popup-section-title">📝 What\'s happening</div>';
+            data.subjects.forEach(s => {
+                if (s.status !== 'good') {
+                    html += `<div class="summary-text">${s.summary}</div>`;
+                }
+            });
+            if (data.subjects.every(s => s.status === 'good')) {
+                html += `<div class="summary-text" style="border-left-color: #10b981;">All subjects are in good standing! 🎉</div>`;
+            }
+
+            // Actions
+            html += '<div class="popup-section-title">💡 Recommended Actions</div>';
+            data.actions.forEach(a => {
+                html += `<div class="action-item">→ ${a}</div>`;
+            });
+
+            // Parent notification status
+            if (data.parent_notified) {
+                html += `<div class="parent-status parent-notified">✅ Parent has been notified (attendance below 75%) — Phone: ${data.parent_contact}</div>`;
+            } else {
+                html += `<div class="parent-status parent-will-notify">📱 Parent contact: ${data.parent_contact}</div>`;
+            }
+
+            // Action buttons
+            html += `
+                <div class="popup-actions">
+                    <button class="popup-btn btn-email" onclick="toggleEmailCompose()">📧 Send Email to Student</button>
+                    <button class="popup-btn btn-meeting" onclick="scheduleMeeting('${data.student_id}', '${data.student_name}')">📅 Schedule Meeting</button>
+                </div>
+
+                <div class="email-compose" id="email-compose-area">
+                    <p style="color: #94a3b8; font-size: 13px; margin-top: 0;">Write a message to the student:</p>
+                    <textarea id="email-message" placeholder="Dear student, I would like to discuss your attendance..."></textarea>
+                    <button class="send-btn" onclick="sendStudentEmail('${data.student_id}', '${data.student_email || ''}')">
+                        📨 Send Message
+                    </button>
+                </div>
+            `;
+
+            document.getElementById('popup-body').innerHTML = html;
+        }
+
+        function toggleEmailCompose() {
+            const area = document.getElementById('email-compose-area');
+            area.classList.toggle('active');
+        }
+
+        function sendStudentEmail(studentId, email) {
+            const message = document.getElementById('email-message').value;
+            if (!message.trim()) {
+                alert('Please write a message first.');
+                return;
+            }
+
+            fetch('/faculty/send_student_email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ student_id: studentId, message: message, email: email })
+            })
+            .then(res => res.json())
+            .then(data => {
+                alert(data.message);
+                document.getElementById('email-compose-area').classList.remove('active');
+            })
+            .catch(err => alert('Failed to send message.'));
+        }
+
+        function scheduleMeeting(studentId, studentName) {
+            alert(`📅 Meeting request logged for ${studentName} (${studentId}). This would typically create a calendar event or send a meeting invite.`);
+        }
+
+        // (CSV Upload Logic Removed)
     </script>
 
 </body>
