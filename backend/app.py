@@ -170,7 +170,7 @@ def manage_users():
     """Admin page to view all faculty and manage OTPs."""
     conn = get_db_connection()
     users_df = pd.read_sql_query(
-        "SELECT id, username, role, email, full_name FROM users WHERE role != 'admin' ORDER BY role, username", conn
+        "SELECT id, username, role, email, full_name FROM users WHERE role IN ('faculty', 'mentor') ORDER BY role, username", conn
     )
 
     # Check if SMTP is configured
@@ -1165,123 +1165,85 @@ def faculty_dashboard():
 @login_required(role="admin")
 def dashboard():
     conn = get_db_connection()
+    cursor = conn.cursor()
     
-    # Get available sections
-    try:
-        sections_df = pd.read_sql_query("SELECT DISTINCT Section FROM attendance ORDER BY Section", conn)
-        available_sections = sections_df['Section'].dropna().tolist()
-    except Exception as e:
-        available_sections = []
+    # 1. Total Students
+    cursor.execute("SELECT COUNT(DISTINCT registration_no) FROM students")
+    total_students = cursor.fetchone()[0] or 0
+    
+    # 2. Today's Date or Latest Date in Attendance DB
+    cursor.execute("SELECT MAX(Date) FROM attendance")
+    latest_date_row = cursor.fetchone()
+    latest_date = latest_date_row[0] if latest_date_row else None
+    
+    present_today = 0
+    absent_today = 0
+    late_today = 0
+    present_rate = 0.0
+    
+    if latest_date:
+        # 3. Present / Absent for the latest date
+        cursor.execute("SELECT SUM(Present) as present_count, COUNT(*) as total_records FROM attendance WHERE Date = ?", (latest_date,))
+        att_row = cursor.fetchone()
+        present_today = att_row[0] or 0
+        total_records = att_row[1] or 0
+        absent_today = total_records - present_today
         
-    selected_section = request.args.get("section")
-    if selected_section == "All":
-        selected_section = None
-    
-    # Base query for all students, joining with latest attendance records if they exist
-    query = """
-    SELECT s.registration_no AS StudentID, s.name AS Student_Name, s.section AS Section,
-           a.Rolling_Attendance, a.Absence_Streak, a.Semester_Attendance, a.Attendance_Trend, a.Anomaly, a.Parent_Notified
-    FROM students s
-    LEFT JOIN (
-        SELECT StudentID, MAX(Date) as MaxDate
-        FROM attendance
-        GROUP BY StudentID
-    ) b ON s.registration_no = b.StudentID
-    LEFT JOIN attendance a ON b.StudentID = a.StudentID AND b.MaxDate = a.Date
+        # Placeholder for Late (as there's no native late column)
+        late_today = 0 
+        
+        if total_records > 0:
+            present_rate = round((present_today / total_records) * 100, 1)
+
+    # 4. Weekly Attendance Chart (Last 7 Days)
+    cursor.execute("""
+        SELECT Date, SUM(Present) as present_count 
+        FROM attendance 
+        GROUP BY Date 
+        ORDER BY Date DESC 
+        LIMIT 7
+    """)
+    weekly_data = cursor.fetchall()
+    weekly_data.reverse() # chronological order (old to new)
+    chart_labels = [row[0] for row in weekly_data] if weekly_data else []
+    chart_data = [row[1] for row in weekly_data] if weekly_data else []
+
+    # 5. Anomaly Alerts (DBSCAN)
+    anomalies_query = """
+        SELECT a.StudentID, s.name as Student_Name, a.Date 
+        FROM attendance a
+        LEFT JOIN students s ON a.StudentID = s.registration_no
+        WHERE a.Anomaly = 1
+        ORDER BY a.Date DESC
+        LIMIT 10
     """
+    anomalies_df = pd.read_sql_query(anomalies_query, conn)
+    anomalies = anomalies_df.to_dict(orient="records")
+
+    # 6. Recent Scan Activity
+    recent_query = """
+        SELECT a.StudentID, s.name as Student_Name, a.Subject, a.Present, a.Date
+        FROM attendance a
+        LEFT JOIN students s ON a.StudentID = s.registration_no
+        ORDER BY a.Date DESC, a.rowid DESC
+        LIMIT 8
+    """
+    recent_activity_df = pd.read_sql_query(recent_query, conn)
+    recent_activity = recent_activity_df.to_dict(orient="records")
     
-    params = ()
-    if selected_section:
-        query += " WHERE s.section = ?"
-        params = (selected_section,)
-        
-    try:
-        latest_df = pd.read_sql_query(query, conn, params=params)
-    except Exception as e:
-        print(f"Error querying DB: {e}")
-        latest_df = pd.DataFrame()
-    finally:
-        conn.close()
-
-    risk_summary = []
-
-    if not latest_df.empty:
-        # Group by student to aggregate the 7 subject scores
-        grouped_students = latest_df.groupby("StudentID")
-        
-        for student_id, group in grouped_students:
-            subject_probs = []
-            
-            for _, row in group.iterrows():
-                features = np.array([[
-                    row.get("Rolling_Attendance", 0),
-                    row.get("Absence_Streak", 0),
-                    row.get("Semester_Attendance", 0),
-                    row.get("Attendance_Trend", 0)
-                ]])
-                try:
-                    p = model.predict_proba(features)[0][1] if model else 0.0
-                except IndexError:
-                    p = 0.0
-                subject_probs.append(p)
-
-            # Average metrics across all subjects
-            avg_prob = np.mean(subject_probs) if subject_probs else 0.0
-            avg_semester_att = group["Semester_Attendance"].fillna(0.85).mean()
-            avg_trend = group["Attendance_Trend"].fillna(0.0).mean()
-            has_anomaly = group["Anomaly"].fillna(0).max() == 1
-            has_notified = group["Parent_Notified"].fillna(0).max() == 1
-
-            # ---- Determine Overall Risk Level ----
-            if avg_semester_att < 0.70:
-                risk_level = "High Risk"
-            elif avg_semester_att < 0.75 and avg_trend < -0.15:
-                risk_level = "High Risk"
-            elif avg_trend < -0.15:
-                risk_level = "Watchlist"
-            elif avg_prob > 0.85:
-                risk_level = "Watchlist"
-            else:
-                risk_level = "Safe"
-
-            # ---- Determine Recommended Action ----
-            if has_anomaly:
-                action = "URGENT: Verify — Unusual attendance pattern detected"
-            elif risk_level == "High Risk" and avg_trend < -0.3:
-                action = "URGENT: Contact parent and schedule meeting"
-            elif risk_level == "High Risk":
-                action = "Schedule counseling session with student"
-            elif risk_level == "Watchlist":
-                action = "Send advisory notice to student"
-            else:
-                action = "No action required — student is on track"
-
-            risk_summary.append({
-                "StudentID": student_id,
-                "Semester_Attendance": round(avg_semester_att, 2),
-                "Trend": round(avg_trend, 3),
-                "Probability": round(avg_prob, 2),
-                "Risk_Level": risk_level,
-                "Anomaly": has_anomaly,
-                "Notified": "Yes" if has_notified else "No",
-                "Action": action
-            })
-
-    risk_df = pd.DataFrame(risk_summary) if risk_summary else pd.DataFrame(columns=["Risk_Level", "Anomaly"])
-
-    high_risk = risk_df[risk_df["Risk_Level"] == "High Risk"]
-    watchlist = risk_df[risk_df["Risk_Level"] == "Watchlist"]
-    safe = risk_df[risk_df["Risk_Level"] == "Safe"]
-    anomalies = risk_df[risk_df["Anomaly"] == True]
+    conn.close()
 
     return render_template(
-        "dashboard.html",
-        high_risk=high_risk.to_dict(orient="records") if not high_risk.empty else [],
-        watchlist=watchlist.to_dict(orient="records") if not watchlist.empty else [],
-        anomalies=anomalies.to_dict(orient="records") if not anomalies.empty else [],
-        safe_students=safe.to_dict(orient="records") if not safe.empty else [],
-        sections=available_sections,
-        selected_section=selected_section
+        "command_center.html",
+        total_students=total_students,
+        present_today=present_today,
+        absent_today=absent_today,
+        late_today=late_today,
+        present_rate=present_rate,
+        chart_labels=chart_labels,
+        chart_data=chart_data,
+        anomalies=anomalies,
+        recent_activity=recent_activity
     )
 
 @app.route("/analytics")

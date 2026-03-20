@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Kinetic Lumina | Command Center</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-container-highest": "#353534",
+                        "inverse-primary": "#005bc1",
+                        "secondary-fixed-dim": "#e9b3ff",
+                        "on-error-container": "#ffdad6",
+                        "on-secondary-fixed-variant": "#7200a3",
+                        "error": "#ffb4ab",
+                        "surface-container": "#201f1f",
+                        "secondary": "#e9b3ff",
+                        "on-surface-variant": "#c1c6d7",
+                        "on-secondary-container": "#e5a9ff",
+                        "outline": "#8b90a0",
+                        "on-error": "#690005",
+                        "surface-tint": "#adc6ff",
+                        "primary-fixed": "#d8e2ff",
+                        "on-tertiary-fixed-variant": "#004f53",
+                        "on-primary": "#002e69",
+                        "outline-variant": "#414755",
+                        "inverse-on-surface": "#313030",
+                        "surface-container-lowest": "#0e0e0e",
+                        "primary": "#adc6ff",
+                        "background": "#131313",
+                        "tertiary": "#00dce5",
+                        "primary-fixed-dim": "#adc6ff",
+                        "on-secondary-fixed": "#310048",
+                        "inverse-surface": "#e5e2e1",
+                        "on-primary-fixed": "#001a41",
+                        "surface": "#131313",
+                        "tertiary-container": "#00a1a7",
+                        "secondary-container": "#7d01b1",
+                        "on-tertiary-fixed": "#002021",
+                        "surface-dim": "#131313",
+                        "on-secondary": "#510074",
+                        "surface-variant": "#353534",
+                        "on-tertiary": "#003739",
+                        "secondary-fixed": "#f6d9ff",
+                        "on-primary-container": "#00285c",
+                        "tertiary-fixed-dim": "#00dce5",
+                        "on-secondary-fixed-variant": "#7200a3",
+                        "on-tertiary-container": "#002f32",
+                        "on-primary-fixed-variant": "#004493",
+                        "tertiary-fixed": "#63f7ff",
+                        "surface-bright": "#393939",
+                        "surface-container-low": "#1c1b1b",
+                        "error-container": "#93000a",
+                        "on-background": "#e5e2e1",
+                        "primary-container": "#4b8eff",
+                        "surface-container-high": "#2a2a2a"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(53, 53, 52, 0.6);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(65, 71, 85, 0.15);
+        }
+        .text-gradient {
+            background: linear-gradient(135deg, #adc6ff 0%, #4b8eff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        body {
+            background-color: #131313;
+            color: #e5e2e1;
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="overflow-hidden">
+<!-- Sidebar Navigation -->
+<aside class="fixed left-0 top-0 h-full w-64 bg-[#201f1f] flex flex-col border-r border-white/5 z-50 transition-all duration-300 ease-in-out">
+<div class="p-6">
+<h1 class="text-lg font-black text-[#adc6ff] font-headline tracking-tighter">Command Center</h1>
+<p class="text-[10px] font-label uppercase tracking-wider text-on-surface-variant">Attendance Pulse</p>
+</div>
+<nav class="flex-1 mt-4">
+<!-- Home (Active) -->
+<a class="bg-gradient-to-r from-[#adc6ff]/10 to-transparent border-l-4 border-[#adc6ff] text-[#adc6ff] py-3 px-6 flex items-center gap-3 font-medium transition-colors" href="{{ url_for('dashboard') }}">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-body text-sm">Home</span>
+</a>
+<!-- Inactive Tabs Removed -->
+<a class="text-gray-500 py-3 px-6 flex items-center gap-3 hover:text-gray-300 hover:bg-[#2a2a2a] transition-all" href="{{ url_for('analytics') }}">
+<span class="material-symbols-outlined" data-icon="leaderboard">leaderboard</span>
+<span class="font-body text-sm">Analytics</span>
+</a>
+<a class="text-gray-500 py-3 px-6 flex items-center gap-3 hover:text-gray-300 hover:bg-[#2a2a2a] transition-all" href="{{ url_for('manage_users') }}">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-body text-sm">Users</span>
+</a>
+
+</nav>
+<div class="mt-auto border-t border-white/5 p-4">
+<a class="text-gray-500 py-3 px-6 flex items-center gap-3 hover:text-gray-300 transition-all" href="{{ url_for('smtp_settings') }}">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-body text-sm">Settings</span>
+</a>
+<a class="text-gray-500 py-3 px-6 flex items-center gap-3 hover:text-gray-300 transition-all" href="{{ url_for('logout') }}">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-body text-sm">Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 h-screen flex flex-col bg-background">
+<!-- TopAppBar -->
+<header class="bg-[#131313] flex justify-between items-center w-full px-8 py-4 z-40">
+<div>
+<h2 class="text-xl font-bold tracking-tighter text-[#adc6ff] font-headline">Kinetic Lumina</h2>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-4 text-[#adc6ff]">
+<div class="flex items-center gap-3 ml-2">
+<img alt="User Profile Avatar" class="w-8 h-8 rounded-full border border-primary/20" data-alt="User profile avatar icon" src="https://ui-avatars.com/api/?name=Admin&background=0D8ABC&color=fff"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Scrollable Dashboard Content -->
+<div class="flex-1 overflow-y-auto p-8 space-y-8">
+
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <div class="mb-2 space-y-2">
+      {% for msg in messages %}
+        <div class="px-4 py-3 rounded-lg text-sm font-medium {% if '✅' in msg %}bg-green-500/20 text-green-400 border border-green-500/30{% else %}bg-error/20 text-error border border-error/30{% endif %}">
+          {{ msg }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<!-- Hero Stats Bento Grid -->
+<section class="grid grid-cols-1 md:grid-cols-4 gap-6">
+<!-- Total Students -->
+<div class="bg-surface-container p-6 rounded-xl border-l-4 border-primary">
+<p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-label mb-2">Total Students</p>
+<h3 class="text-4xl font-extrabold font-headline tracking-tight">{{ total_students }}</h3>
+<div class="mt-4 flex items-center gap-1 text-tertiary text-xs">
+<span class="material-symbols-outlined text-xs" data-icon="trending_up">trending_up</span>
+<span>Active Enrollment</span>
+</div>
+</div>
+<!-- Present Today -->
+<div class="bg-surface-container p-6 rounded-xl border-l-4 border-tertiary">
+<p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-label mb-2">Present Today</p>
+<h3 class="text-4xl font-extrabold font-headline tracking-tight text-gradient">{{ present_today }}</h3>
+<div class="mt-4 flex items-center gap-1 text-on-surface-variant text-xs">
+<span class="material-symbols-outlined text-xs" data-icon="check_circle">check_circle</span>
+<span>{{ present_rate }}% Rate</span>
+</div>
+</div>
+<!-- Absent -->
+<div class="bg-surface-container p-6 rounded-xl border-l-4 border-error">
+<p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-label mb-2">Absent</p>
+<h3 class="text-4xl font-extrabold font-headline tracking-tight">{{ absent_today }}</h3>
+<div class="mt-4 flex items-center gap-1 text-error text-xs">
+<span class="material-symbols-outlined text-xs" data-icon="warning">warning</span>
+<span>High in Grade 10</span>
+</div>
+</div>
+<!-- Late -->
+<div class="bg-surface-container p-6 rounded-xl border-l-4 border-secondary">
+<p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-label mb-2">Late</p>
+<h3 class="text-4xl font-extrabold font-headline tracking-tight">{{ late_today }}</h3>
+<div class="mt-4 flex items-center gap-1 text-secondary text-xs">
+<span class="material-symbols-outlined text-xs" data-icon="schedule">schedule</span>
+<span>Decreased by 12%</span>
+</div>
+</div>
+</section>
+<!-- Main Data Visuals Split -->
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Weekly Attendance Chart -->
+<div class="lg:col-span-2 bg-surface-container p-8 rounded-xl flex flex-col min-h-[400px]">
+<div class="flex justify-between items-start mb-10">
+<div>
+<h4 class="text-lg font-bold font-headline">Weekly Attendance Pulse</h4>
+<p class="text-sm text-on-surface-variant">Daily student presence trends over the last 7 days</p>
+</div>
+<div class="flex gap-2">
+<span class="px-3 py-1 bg-surface-container-high rounded-full text-[10px] font-label text-primary uppercase">This Week</span>
+</div>
+</div>
+<!-- Chart.js Container -->
+<div class="flex-1 flex items-end justify-between gap-4 px-4 pb-2" style="position: relative; height: 300px; width: 100%;">
+    <canvas id="attendanceChart"></canvas>
+</div>
+</div>
+<!-- Anomaly Alerts -->
+<div class="bg-surface-container p-8 rounded-xl flex flex-col">
+<div class="flex items-center justify-between mb-8">
+<h4 class="text-lg font-bold font-headline flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary" data-icon="bolt">bolt</span>
+                            Anomaly Alerts
+                        </h4>
+<span class="w-2 h-2 bg-tertiary animate-pulse rounded-full"></span>
+</div>
+<div class="space-y-4" style="max-height: 400px; overflow-y: auto;">
+{% if anomalies and anomalies|length > 0 %}
+    {% for alert in anomalies %}
+    <!-- Alert Item -->
+    <div class="bg-surface-container-high p-4 rounded-lg flex items-start gap-4 hover:bg-surface-container-highest transition-colors cursor-pointer">
+    <div class="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center text-error flex-shrink-0">
+    <span class="material-symbols-outlined" data-icon="error">error</span>
+    </div>
+    <div>
+    <h5 class="text-sm font-bold">Unusual Pattern: {{ alert.Student_Name }}</h5>
+    <p class="text-xs text-on-surface-variant mt-1 leading-relaxed">Student ID: {{ alert.StudentID }}</p>
+    <p class="text-xs text-on-surface-variant mt-1 leading-relaxed">DBSCAN flagged this behavior as highly anomalous.</p>
+    <span class="text-[10px] text-error font-label uppercase mt-2 block">Critical • Detected {{ alert.Date }}</span>
+    </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <p class="text-sm text-on-surface-variant">No anomalies detected by DBSCAN.</p>
+{% endif %}
+</div>
+
+</div>
+</section>
+<!-- Bottom Dashboard Row -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-8 pb-10">
+<!-- Recent Scan Activity -->
+<div class="bg-surface-container p-8 rounded-xl">
+<div class="flex justify-between items-center mb-6">
+<h4 class="text-lg font-bold font-headline">Recent Activity</h4>
+</div>
+<div class="space-y-4" style="max-height: 300px; overflow-y: auto;">
+{% if recent_activity and recent_activity|length > 0 %}
+    {% for activity in recent_activity %}
+    <div class="flex items-center justify-between p-3 rounded-lg bg-surface-container-low">
+    <div class="flex items-center gap-3">
+    <img alt="Student profile" class="w-8 h-8 rounded-full" src="https://ui-avatars.com/api/?name={{ activity.Student_Name }}&background=random"/>
+    <div>
+    <p class="text-sm font-medium">{{ activity.Student_Name }}</p>
+    <p class="text-[10px] text-on-surface-variant uppercase">ID: {{ activity.StudentID }} • Subject: {{ activity.Subject }}</p>
+    </div>
+    </div>
+    <div class="text-right">
+    {% if activity.Present == 1 %}
+        <p class="text-xs font-bold text-tertiary">Scanned In</p>
+    {% else %}
+        <p class="text-xs font-bold text-error">Absent</p>
+    {% endif %}
+    <p class="text-[10px] text-on-surface-variant">{{ activity.Date }}</p>
+    </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <p class="text-sm text-on-surface-variant">No recent activity found.</p>
+{% endif %}
+</div>
+</div>
+<!-- Admin Configuration & Tools -->
+<div class="bg-surface-container p-8 rounded-xl relative">
+    <h4 class="text-lg font-bold font-headline mb-6 text-[#adc6ff]">Student Data & Timetable</h4>
+    
+    <div class="space-y-6">
+        <!-- Upload Students Form -->
+        <div class="bg-surface-container-high p-5 rounded-xl border border-[#adc6ff]/10 hover:border-[#adc6ff]/30 transition-colors">
+            <h5 class="text-sm font-bold text-[#adc6ff] mb-2">1. Upload Student Directory (CSV)</h5>
+            <p class="text-[11px] text-on-surface-variant mb-4 font-label">Required columns: name, registration_no, section, subjects, assigned_mentors, student_email, parent_email</p>
+            
+            <div class="flex items-center gap-3">
+                <input type="file" id="studentCsvFile" accept=".csv" class="text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-[#adc6ff]/10 file:text-[#adc6ff] hover:file:bg-[#adc6ff]/20 cursor-pointer">
+                <button onclick="uploadStudentData()" id="uploadStudentBtn" class="bg-[#adc6ff] text-[#002e69] px-5 py-2 rounded-full text-xs font-bold hover:bg-[#adc6ff]/90 transition-colors whitespace-nowrap shadow-lg shadow-[#adc6ff]/20">
+                    Upload CSV
+                </button>
+            </div>
+            <div id="studentUploadResult" class="mt-4 text-xs hidden p-3 rounded-lg" style="max-height: 150px; overflow-y: auto;"></div>
+        </div>
+
+        <!-- Generate AI Timetable Form -->
+        <div class="bg-surface-container-high p-5 rounded-xl border border-[#00dce5]/10 hover:border-[#00dce5]/30 transition-colors">
+            <h5 class="text-sm font-bold text-[#00dce5] mb-2">2. Generate Master Timetable</h5>
+            <p class="text-[11px] text-on-surface-variant mb-5 font-label">Run the AI scheduler to build 24 weekly classes natively based on uploaded student enrolled_subjects and available faculty.</p>
+            
+            <form action="{{ url_for('generate_timetable') }}" method="POST" onsubmit="document.getElementById('generateBtn').innerHTML = '<span class=\'material-symbols-outlined text-sm animate-spin\'>sync</span> Generating...'; document.getElementById('generateBtn').disabled = true;">
+                <button type="submit" id="generateBtn" class="bg-[#00dce5] text-[#003739] px-6 py-2.5 rounded-full text-xs font-bold hover:bg-[#00dce5]/90 transition-colors w-full flex justify-center items-center gap-2 shadow-lg shadow-[#00dce5]/20">
+                    <span class="material-symbols-outlined text-sm">precision_manufacturing</span> Create Timetable
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+</section>
+</div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const ctx = document.getElementById('attendanceChart').getContext('2d');
+        
+        // Data injected from backend
+        const labels = {{ chart_labels | safe }};
+        const dataValues = {{ chart_data | safe }};
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Present Students',
+                    data: dataValues,
+                    backgroundColor: function(context) {
+                        const chart = context.chart;
+                        const {ctx, chartArea} = chart;
+                        if (!chartArea) return null;
+                        const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+                        gradient.addColorStop(0, '#4b8eff'); // primary-container
+                        gradient.addColorStop(1, '#adc6ff'); // primary
+                        return gradient;
+                    },
+                    borderRadius: {
+                        topLeft: 8,
+                        topRight: 8,
+                        bottomLeft: 0,
+                        bottomRight: 0
+                    },
+                    borderWidth: 0,
+                    barPercentage: 0.6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#2a2a2a',
+                        titleColor: '#e5e2e1',
+                        bodyColor: '#c1c6d7',
+                        padding: 12,
+                        cornerRadius: 8,
+                        displayColors: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: '#353534',
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: '#8b90a0',
+                            font: { family: 'Inter', size: 10 }
+                        }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            color: '#8b90a0',
+                            font: { family: 'Inter', size: 10, weight: 'bold' }
+                        }
+                    }
+                }
+            }
+        });
+    });
+
+    function uploadStudentData() {
+        const fileInput = document.getElementById('studentCsvFile');
+        const btn = document.getElementById('uploadStudentBtn');
+        const resultDiv = document.getElementById('studentUploadResult');
+
+        if (!fileInput.files.length) {
+            resultDiv.textContent = '❌ Please select a CSV file first.';
+            resultDiv.className = 'mt-4 text-xs p-3 rounded-lg bg-error/20 text-error block border border-error/30';
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        btn.disabled = true;
+        btn.textContent = 'Uploading...';
+        resultDiv.style.display = 'none';
+
+        fetch('{{ url_for("upload_student_data") }}', { 
+            method: 'POST', 
+            body: formData 
+        })
+        .then(r => r.json())
+        .then(data => {
+            resultDiv.style.display = 'block';
+            if (data.success) {
+                resultDiv.className = 'mt-4 text-xs p-3 rounded-lg bg-green-500/20 text-green-400 block border border-green-500/30';
+                resultDiv.innerHTML = '✅ ' + data.message;
+                if (data.details && data.details.errors && data.details.errors.length > 0) {
+                    resultDiv.innerHTML += '<br><br><b>Notes:</b><br>' + data.details.errors.join('<br>');
+                }
+            } else {
+                resultDiv.className = 'mt-4 text-xs p-3 rounded-lg bg-error/20 text-error block border border-error/30';
+                resultDiv.textContent = '❌ ' + data.message;
+            }
+        })
+        .catch(err => {
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'mt-4 text-xs p-3 rounded-lg bg-error/20 text-error block border border-error/30';
+            resultDiv.textContent = '❌ Network error.';
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.textContent = 'Upload CSV';
+        });
+    }
+</script>
+</body></html>
