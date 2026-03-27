@@ -686,24 +686,76 @@
         <!-- ========== ATTENDANCE TAB ========== -->
         <div id="content-attendance">
 
-        <h3 style="color:#e2e8f0; margin-bottom:20px;">Assigned Subject: <span style="color:#0ea5e9;">{{ subject }}</span></h3>
+        <h3 style="color:#e2e8f0; margin-bottom:8px;">Assigned Subject: <span style="color:#0ea5e9;">{{ subject if subject else 'Not Assigned' }}</span></h3>
 
-        <div class="section-grid">
-            {% for cls in classes %}
-            <div class="card" onclick="loadSection('{{ cls.section }}')">
-                <h3>Section {{ cls.section }}</h3>
-                <p>{{ cls.time_slot }}</p>
-            </div>
-            {% endfor %}
+        <!-- Global Date Picker -->
+        <div style="display:flex; align-items:center; gap:14px; background:#1e293b; border:1px solid #334155; border-radius:10px; padding:14px 20px; margin-bottom:22px;">
+            <span style="color:#94a3b8; font-size:14px; font-weight:600;">📅 Select Date:</span>
+            <input type="date" id="global-date-picker"
+                style="background:#0f172a; color:#fff; border:1px solid #475569; padding:8px 14px; border-radius:8px; font-size:15px; cursor:pointer;">
+            <span id="selected-day-label" style="color:#38bdf8; font-weight:700; font-size:15px;"></span>
+            <span id="no-classes-msg" style="color:#f59e0b; font-size:13px; display:none;">⚠️ No classes scheduled on this day.</span>
         </div>
 
-        <!-- Attendance forms per section -->
+        <!-- Day-wise Weekly Schedule (read-only overview, always visible) -->
+        {% set ns = namespace(has_classes=false) %}
+        {% for day in days_order %}
+            {% if day_schedule[day] %}{% set ns.has_classes = true %}{% endif %}
+        {% endfor %}
+        {% if ns.has_classes %}
+        <div style="margin-bottom: 30px;">
+            <h4 style="color:#94a3b8; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:14px;">📅 Your Weekly Schedule</h4>
+            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;">
+                {% for day in days_order %}
+                <div style="background:#1e293b; border:1px solid #334155; border-radius:10px; overflow:hidden;">
+                    <div style="background:#0ea5e9; padding:8px 12px; font-size:13px; font-weight:700; color:#fff; text-align:center;">
+                        {{ day[:3] | upper }}
+                    </div>
+                    <div style="padding:10px 8px; min-height:60px;">
+                        {% if day_schedule[day] %}
+                            {% for entry in day_schedule[day] %}
+                            <div style="background:#0f172a; border:1px solid #334155; border-radius:6px; padding:7px 10px; margin-bottom:6px;">
+                                <div style="font-size:12px; font-weight:700; color:#38bdf8;">{{ entry.subject }}</div>
+                                <div style="font-size:11px; color:#94a3b8; margin-top:2px;">Sec {{ entry.section }}</div>
+                                <div style="font-size:10px; color:#64748b; margin-top:2px;">{{ entry.time_slot }}</div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div style="text-align:center; color:#475569; font-size:12px; margin-top:14px;">No classes</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <div style="background:#1e293b; border:1px dashed #334155; border-radius:10px; padding:20px; text-align:center; margin-bottom:30px; color:#64748b;">
+            ⚠️ No timetable has been generated yet. Ask your admin to generate the timetable.
+        </div>
+        {% endif %}
+
+
+        <!-- Section Cards: JS-generated per (section, time_slot) on the selected day -->
+        {% if unique_sections %}
+        <h4 id="section-cards-label" style="color:#94a3b8; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:14px; display:none;">📋 Mark Attendance by Section</h4>
+        <div id="section-cards-container" class="section-grid"></div>
+        {% endif %}
+
+
+        <!-- Attendance forms per section (one per section; time_slot set dynamically by JS) -->
+        {% set seen_sections = [] %}
         {% for cls in classes %}
-        <div id="form-{{ cls.section }}" class="attendance-form">
+        {% if cls.section not in seen_sections %}
+        {% set _ = seen_sections.append(cls.section) %}
+        <div id="form-{{ cls.section }}" class="attendance-form" data-section="{{ cls.section }}">
             <div class="list-header">
-                <h3>Marking Attendance: Section {{ cls.section }} ({{ subject }})</h3>
+                <div>
+                    <h3 id="form-title-{{ cls.section }}">Marking Attendance: Section {{ cls.section }} ({{ subject }})</h3>
+                    <div id="form-timeslot-label-{{ cls.section }}" style="color:#38bdf8; font-size:13px; font-weight:600; margin-top:4px;"></div>
+                </div>
                 <span style="color:#94a3b8; font-size:14px;">Date:
                     <input type="date" id="date-{{ cls.section }}" value=""
+                        onchange="validateLocalDate(this, '{{ cls.section }}')"
                         style="background:#0f172a; color:#fff; border:1px solid #475569; padding:8px 12px; border-radius:6px; cursor:pointer; font-size:14px;">
                 </span>
             </div>
@@ -712,6 +764,12 @@
                 <input type="hidden" name="section" value="{{ cls.section }}">
                 <input type="hidden" name="subject" value="{{ subject }}">
                 <input type="hidden" name="date" class="date-input-hidden" value="">
+                <input type="hidden" name="time_slot" class="timeslot-input-hidden" value="">
+
+                <div style="display:flex; gap:10px; margin-bottom:15px; justify-content:flex-end;">
+                    <button type="button" class="tab-btn" style="padding:6px 12px; font-size:12px;" onclick="markAll('{{ cls.section }}', 1)">Mark All Present</button>
+                    <button type="button" class="tab-btn" style="padding:6px 12px; font-size:12px; background:rgba(239,68,68,0.1); color:#fca5a5; border-color:#ef4444;" onclick="markAll('{{ cls.section }}', 0)">Mark All Absent</button>
+                </div>
 
                 {% for student in all_students if student.Section == cls.section %}
                 <div class="student-row">
@@ -735,8 +793,10 @@
                     Attendance for Section {{ cls.section }}</button>
             </form>
         </div>
+        {% endif %}
         {% endfor %}
         </div> <!-- end content-attendance -->
+
 
         <!-- ========== MENTOR VIEW TAB ========== -->
         <div id="content-mentor" style="display: none;">
@@ -877,6 +937,11 @@
     </div>
 
     <script>
+        // ---- Embed day_schedule from server ----
+        // Maps day name -> [{subject, section, time_slot}, ...] sorted by time_slot
+        const DAY_SCHEDULE = {{ day_schedule | tojson }};
+        const DAYS_ORDER = ["Monday","Tuesday","Wednesday","Thursday","Friday"];
+
         // ---- Tab Switching ----
         function switchTab(tabName) {
             document.getElementById('content-attendance').style.display = 'none';
@@ -890,30 +955,151 @@
             document.getElementById('tab-' + tabName).classList.add('active');
         }
 
-        // Set today's date as default, allow picking other dates
-        const today = new Date().toISOString().split('T')[0];
-        document.querySelectorAll('input[type="date"]').forEach(el => {
-            el.value = today;
-            el.addEventListener('change', function() {
-                // Update hidden date field for same section
-                const section = this.id.replace('date-', '');
-                const hidden = document.querySelector(`#form-${section} .date-input-hidden`);
-                if (hidden) hidden.value = this.value;
-            });
-        });
-        document.querySelectorAll('.date-input-hidden').forEach(el => el.value = today);
+        // ---- Global date picker logic ----
+        const globalPicker = document.getElementById('global-date-picker');
+        const dayLabel = document.getElementById('selected-day-label');
+        const noClassesMsg = document.getElementById('no-classes-msg');
 
-        function loadSection(sectionName) {
-            document.querySelectorAll('.attendance-form').forEach(el => el.classList.remove('active'));
-            document.getElementById('form-' + sectionName).classList.add('active');
-            document.querySelectorAll('.card').forEach(el => el.classList.remove('active'));
-            event.currentTarget.classList.add('active');
-
-            // Sync date
-            const dateInput = document.getElementById('date-' + sectionName);
-            const hidden = document.querySelector(`#form-${sectionName} .date-input-hidden`);
-            if (hidden && dateInput) hidden.value = dateInput.value;
+        function getDayName(dateStr) {
+            // dateStr = "YYYY-MM-DD"
+            // Use UTC to avoid timezone shifting the day
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const dt = new Date(Date.UTC(y, m - 1, d));
+            return DAYS_ORDER[dt.getUTCDay() - 1] ?? null; // Mon=1..Fri=5; Sun/Sat → null
         }
+
+        function filterSectionsByDay(dateStr) {
+            const dayName = getDayName(dateStr);
+            dayLabel.textContent = dayName ? `(${dayName})` : '';
+
+            // Get classes on this day, already sorted ascending by time_slot from server
+            const classesOnDay = dayName ? (DAY_SCHEDULE[dayName] || []) : [];
+            const sectionsOnDay = [...new Set(classesOnDay.map(c => c.section))];
+
+            // Update all hidden date fields
+            document.querySelectorAll('input[type="date"]:not(#global-date-picker)').forEach(el => {
+                el.value = dateStr;
+            });
+            document.querySelectorAll('.date-input-hidden').forEach(el => el.value = dateStr);
+
+            // ---- Generate one card per (section, time_slot) entry, sorted ascending ----
+            const container = document.getElementById('section-cards-container');
+            const label = document.getElementById('section-cards-label');
+            if (container) {
+                container.innerHTML = '';
+                if (classesOnDay.length > 0) {
+                    if (label) label.style.display = '';
+                    classesOnDay.forEach(entry => {
+                        const card = document.createElement('div');
+                        card.className = 'card';
+                        card.dataset.section = entry.section;
+                        card.dataset.timeslot = entry.time_slot;
+                        card.innerHTML = `
+                            <h3>Section ${entry.section}</h3>
+                            <p style="font-size:13px; color:#cbd5e1;">${entry.subject}</p>
+                            <p style="font-size:11px; color:#38bdf8; margin-top:6px; font-weight:600;">🕐 ${entry.time_slot}</p>
+                        `;
+                        card.onclick = function() {
+                            loadSection(entry.section, entry.time_slot, card);
+                        };
+                        container.appendChild(card);
+                    });
+                } else {
+                    if (label) label.style.display = 'none';
+                }
+            }
+
+            // Hide all attendance forms when date changes
+            document.querySelectorAll('.attendance-form').forEach(form => {
+                form.classList.remove('active');
+                form.style.display = 'none';
+            });
+
+            // Show "no classes" message if applicable
+            if (dayName === null) {
+                noClassesMsg.textContent = '⚠️ Weekend — no classes scheduled.';
+                noClassesMsg.style.display = '';
+            } else if (classesOnDay.length === 0) {
+                noClassesMsg.textContent = '⚠️ No classes scheduled on this day.';
+                noClassesMsg.style.display = '';
+            } else {
+                noClassesMsg.style.display = 'none';
+            }
+        }
+
+        // Initialize with today's date
+        const today = new Date().toISOString().split('T')[0];
+        globalPicker.value = today;
+        filterSectionsByDay(today);
+
+        globalPicker.addEventListener('change', function() {
+            filterSectionsByDay(this.value);
+        });
+
+        function loadSection(sectionName, timeSlot, clickedCard) {
+            // Deactivate all cards and forms
+            document.querySelectorAll('#section-cards-container .card').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.attendance-form').forEach(el => {
+                el.classList.remove('active');
+                el.style.display = 'none';
+            });
+
+            // Activate clicked card
+            if (clickedCard) clickedCard.classList.add('active');
+
+            // Open the section form
+            const form = document.getElementById('form-' + sectionName);
+            if (form) {
+                form.classList.add('active');
+                form.style.display = 'block';
+
+                // Update form header to show which time slot is being marked
+                const timeslotLabel = document.getElementById('form-timeslot-label-' + sectionName);
+                if (timeslotLabel) {
+                    timeslotLabel.textContent = timeSlot ? `🕐 Time Slot: ${timeSlot}` : '';
+                }
+
+                // Set hidden time_slot input
+                const tsHidden = form.querySelector('.timeslot-input-hidden');
+                if (tsHidden) tsHidden.value = timeSlot || '';
+
+                // Sync global date
+                const dateStr = globalPicker.value;
+                const dateInput = document.getElementById('date-' + sectionName);
+                const dateHidden = form.querySelector('.date-input-hidden');
+                if (dateInput) dateInput.value = dateStr;
+                if (dateHidden) dateHidden.value = dateStr;
+            }
+        }
+
+        // ---- Bulk Mark Attendance ----
+        function markAll(section, statusValue) {
+            const form = document.querySelector(`#form-${section} form`);
+            if (form) {
+                form.querySelectorAll(`input[type="radio"][value="${statusValue}"]`).forEach(radio => {
+                    radio.checked = true;
+                });
+            }
+        }
+
+        // ---- Validate Local Date Picker ----
+        function validateLocalDate(input, sectionName) {
+            const dateStr = input.value;
+            const dayName = getDayName(dateStr);
+            const classesOnDay = dayName ? (DAY_SCHEDULE[dayName] || []) : [];
+            const hasClass = classesOnDay.some(c => c.section === sectionName);
+
+            if (!hasClass) {
+                alert(`⚠️ Warning: You have no scheduled class for Section ${sectionName} on ${dayName || 'the weekend'} (${dateStr}).\n\nPlease use the Select Date picker at the top to choose valid dates.`);
+                // Revert to global date picker value
+                input.value = globalPicker.value;
+            } else {
+                alert(`⚠️ Time Slot Warning:\n\nIf you change the date here, the time slot might differ from what's currently selected. To ensure attendance is marked for the correct time slot, please use the main ✨ Select Date ✨ picker at the top of the page instead.`);
+                // Revert to global date picker value to force them to use the main flow
+                input.value = globalPicker.value;
+            }
+        }
+
 
         // ---- Confirmation Modal ----
         let currentFormToSubmit = null;

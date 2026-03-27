@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Kinetic Lumina | Generate Timetable</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                colors: {
+                    "surface-container-highest": "#353534",
+                    "surface-container-high": "#2a2a2a",
+                    "surface-container": "#201f1f",
+                    "surface-container-low": "#1c1b1b",
+                    "background": "#131313",
+                    "primary": "#adc6ff",
+                    "primary-container": "#4b8eff",
+                    "on-primary": "#002e69",
+                    "on-surface-variant": "#c1c6d7",
+                    "outline-variant": "#414755",
+                    "tertiary": "#00dce5",
+                    "error": "#ffb4ab",
+                },
+                fontFamily: {
+                    "headline": ["Manrope"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+                },
+            },
+        },
+    }
+</script>
+<style>
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    body { background-color: #131313; color: #e5e2e1; font-family: 'Inter', sans-serif; }
+</style>
+</head>
+<body class="overflow-hidden">
+
+<!-- Sidebar Navigation -->
+<aside class="fixed left-0 top-0 h-full w-64 bg-[#201f1f] flex flex-col border-r border-white/5 z-50">
+<div class="p-6">
+    <h1 class="text-lg font-black text-[#adc6ff] font-headline tracking-tighter">Command Center</h1>
+    <p class="text-[10px] font-label uppercase tracking-wider text-on-surface-variant">Attendance Pulse</p>
+</div>
+<nav class="flex-1 mt-4">
+    <a class="text-gray-500 py-3 px-6 flex items-center gap-3 hover:text-gray-300 hover:bg-[#2a2a2a] transition-all" href="{{ url_for('dashboard') }}">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span class="font-body text-sm">Home</span>
+    </a>
+    <a class="text-gray-500 py-3 px-6 flex items-center gap-3 hover:text-gray-300 hover:bg-[#2a2a2a] transition-all" href="{{ url_for('analytics') }}">
+        <span class="material-symbols-outlined">leaderboard</span>
+        <span class="font-body text-sm">Analytics</span>
+    </a>
+    <a class="text-gray-500 py-3 px-6 flex items-center gap-3 hover:text-gray-300 hover:bg-[#2a2a2a] transition-all" href="{{ url_for('manage_users') }}">
+        <span class="material-symbols-outlined">group</span>
+        <span class="font-body text-sm">Users</span>
+    </a>
+    <a class="bg-gradient-to-r from-[#adc6ff]/10 to-transparent border-l-4 border-[#adc6ff] text-[#adc6ff] py-3 px-6 flex items-center gap-3 font-medium transition-colors" href="{{ url_for('timetable.index') }}">
+        <span class="material-symbols-outlined">calendar_month</span>
+        <span class="font-body text-sm">Timetable</span>
+    </a>
+</nav>
+<div class="mt-auto border-t border-white/5 p-4">
+    <a class="text-gray-500 py-3 px-6 flex items-center gap-3 hover:text-gray-300 transition-all" href="{{ url_for('smtp_settings') }}">
+        <span class="material-symbols-outlined">settings</span>
+        <span class="font-body text-sm">Settings</span>
+    </a>
+    <a class="text-gray-500 py-3 px-6 flex items-center gap-3 hover:text-gray-300 transition-all" href="{{ url_for('logout') }}">
+        <span class="material-symbols-outlined">logout</span>
+        <span class="font-body text-sm">Logout</span>
+    </a>
+</div>
+</aside>
+
+<!-- Main Content Area -->
+<main class="ml-64 h-screen flex flex-col bg-background">
+<header class="bg-[#131313] flex justify-between items-center w-full px-8 py-4 z-40">
+    <div>
+        <h2 class="text-xl font-bold tracking-tighter text-[#adc6ff] font-headline">Master Timetable Generator</h2>
+    </div>
+    <div class="flex items-center gap-4 text-[#adc6ff]">
+        <img alt="Admin" class="w-8 h-8 rounded-full border border-primary/20" src="https://ui-avatars.com/api/?name=Admin&background=0D8ABC&color=fff"/>
+    </div>
+</header>
+
+<div class="flex-1 overflow-y-auto p-8 space-y-8">
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div class="mb-2 space-y-2">
+        {% for msg in messages %}
+        <div class="px-4 py-3 rounded-lg text-sm font-medium {% if '✅' in msg %}bg-green-500/20 text-green-400 border border-green-500/30{% elif '⚠️' in msg %}bg-yellow-500/20 text-yellow-400 border border-yellow-500/30{% else %}bg-red-500/20 text-red-400 border border-red-500/30{% endif %}">
+            {{ msg }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Hero -->
+    <div class="bg-surface-container p-8 rounded-xl border border-[#adc6ff]/10">
+        <div class="flex items-center gap-4 mb-6">
+            <div class="w-14 h-14 rounded-2xl bg-[#adc6ff]/10 flex items-center justify-center">
+                <span class="material-symbols-outlined text-3xl text-[#adc6ff]">precision_manufacturing</span>
+            </div>
+            <div>
+                <h3 class="text-2xl font-bold font-headline text-[#adc6ff]">Generate Master Timetable</h3>
+                <p class="text-sm text-on-surface-variant mt-1">Auto-schedule classes for all sections with AI-powered conflict resolution</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="bg-surface-container-high p-4 rounded-xl">
+                <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-label mb-1">Time Slots</p>
+                <p class="text-lg font-bold">8 / day</p>
+                <p class="text-xs text-on-surface-variant">9 AM — 5 PM</p>
+            </div>
+            <div class="bg-surface-container-high p-4 rounded-xl">
+                <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-label mb-1">Schedule</p>
+                <p class="text-lg font-bold">Mon — Fri</p>
+                <p class="text-xs text-on-surface-variant">5 days/week</p>
+            </div>
+            <div class="bg-surface-container-high p-4 rounded-xl">
+                <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-label mb-1">Constraints</p>
+                <p class="text-lg font-bold">4 hr/day</p>
+                <p class="text-xs text-on-surface-variant">Max teaching load</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subject Credits Upload Form -->
+    <div class="bg-surface-container p-8 rounded-xl border border-white/5 mb-8">
+        <h4 class="text-lg font-bold font-headline text-[#adc6ff] mb-2 flex items-center gap-2">
+            <span class="material-symbols-outlined">upload_file</span>
+            Upload Subject Credits
+        </h4>
+        <p class="text-sm text-on-surface-variant mb-6">Upload a CSV file containing <strong>subject</strong> and <strong>credits</strong> to dynamically set how many classes each subject gets per week.</p>
+        
+        <form action="{{ url_for('timetable.upload_credits') }}" method="POST" enctype="multipart/form-data" class="flex flex-col md:flex-row items-start md:items-center gap-4">
+            <input type="file" name="file" accept=".csv" required
+                class="block w-full text-sm text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-[#adc6ff]/10 file:text-[#adc6ff] hover:file:bg-[#adc6ff]/20 transition-all cursor-pointer bg-surface-container-high rounded-full border border-white/5 p-1"/>
+            <button type="submit"
+                class="bg-[#adc6ff] text-on-primary px-6 py-2.5 rounded-full text-sm font-bold hover:bg-[#adc6ff]/90 transition-all whitespace-nowrap">
+                Upload Credits
+            </button>
+        </form>
+
+        {% if credits_data %}
+        <div class="mt-6 p-4 bg-surface-container-highest rounded-lg border border-white/5">
+            <div class="flex items-center justify-between mb-4">
+                <span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Current Mappings</span>
+                <span class="text-xs font-medium text-[#adc6ff] bg-[#adc6ff]/10 px-2 py-1 rounded-full">{{ credits_data|length }} Subjects Loaded</span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                {% for credit in credits_data %}
+                <div class="bg-background px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 border border-white/5">
+                    <span class="text-on-surface-variant">{{ credit.subject }}</span>
+                    <span class="text-[#adc6ff]">{{ credit.credits }} cr</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Generate Form -->
+    <div class="bg-surface-container p-8 rounded-xl border border-[#00dce5]/10">
+        <h4 class="text-lg font-bold font-headline text-[#00dce5] mb-2 flex items-center gap-2">
+            <span class="material-symbols-outlined">auto_fix_high</span>
+            Generate from Database
+        </h4>
+        <p class="text-sm text-on-surface-variant mb-6">Uses faculty assignments, student enrollments, and subject credits already in the system to generate a conflict-free timetable.</p>
+
+        <form action="{{ url_for('timetable.generate') }}" method="POST" id="generateForm">
+            <button type="submit" id="genBtn"
+                class="bg-[#00dce5] text-[#003739] px-8 py-3 rounded-full text-sm font-bold hover:bg-[#00dce5]/90 transition-all flex items-center gap-2 shadow-lg shadow-[#00dce5]/20 hover:shadow-[#00dce5]/30 hover:scale-[1.02] active:scale-[0.98]">
+                <span class="material-symbols-outlined text-lg">precision_manufacturing</span>
+                Generate Master Timetable
+            </button>
+        </form>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-10">
+        <a href="{{ url_for('timetable.view') }}" class="bg-surface-container p-6 rounded-xl border border-white/5 hover:border-[#adc6ff]/20 transition-all group cursor-pointer">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-[#adc6ff]/10 flex items-center justify-center group-hover:bg-[#adc6ff]/20 transition-colors">
+                    <span class="material-symbols-outlined text-[#adc6ff]">visibility</span>
+                </div>
+                <div>
+                    <h5 class="font-bold text-sm">View Saved Timetable</h5>
+                    <p class="text-xs text-on-surface-variant">View the last generated timetable</p>
+                </div>
+            </div>
+        </a>
+        <a href="{{ url_for('dashboard') }}" class="bg-surface-container p-6 rounded-xl border border-white/5 hover:border-[#adc6ff]/20 transition-all group cursor-pointer">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-[#adc6ff]/10 flex items-center justify-center group-hover:bg-[#adc6ff]/20 transition-colors">
+                    <span class="material-symbols-outlined text-[#adc6ff]">arrow_back</span>
+                </div>
+                <div>
+                    <h5 class="font-bold text-sm">Back to Dashboard</h5>
+                    <p class="text-xs text-on-surface-variant">Return to Command Center</p>
+                </div>
+            </div>
+        </a>
+    </div>
+
+</div>
+</main>
+
+<script>
+document.getElementById('generateForm').addEventListener('submit', function() {
+    const btn = document.getElementById('genBtn');
+    btn.innerHTML = '<span class="material-symbols-outlined text-lg animate-spin">sync</span> Generating...';
+    btn.disabled = true;
+    btn.classList.add('opacity-70', 'cursor-wait');
+});
+</script>
+</body></html>

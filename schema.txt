@@ -1,0 +1,1 @@
+["StudentID", "Student_Name", "Section", "Subject", "Gender", "Hostler", "Date", "Semester", "Present", "Rolling_Attendance", "Rolling_Attendance_Prev", "Attendance_Trend", "Absence_Streak", "Semester_Attendance", "MentorID", "Parent_Contact", "Mentor_Contact", "Anomaly", "Parent_Notified", "Mentor_Nudged"]

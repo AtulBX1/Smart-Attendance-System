@@ -69,6 +69,15 @@ cursor.execute('''
     )
 ''')
 
+# ---- Create Subject Credits Table ----
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS subject_credits (
+        subject TEXT PRIMARY KEY,
+        credits INTEGER NOT NULL
+    )
+''')
+
+
 # ---- Create SMTP Config Table ----
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS smtp_config (

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Kinetic Lumina | Timetable Results</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                colors: {
+                    "surface-container-highest": "#353534",
+                    "surface-container-high": "#2a2a2a",
+                    "surface-container": "#201f1f",
+                    "surface-container-low": "#1c1b1b",
+                    "background": "#131313",
+                    "primary": "#adc6ff",
+                    "primary-container": "#4b8eff",
+                    "on-primary": "#002e69",
+                    "on-surface-variant": "#c1c6d7",
+                    "outline-variant": "#414755",
+                    "tertiary": "#00dce5",
+                    "error": "#ffb4ab",
+                },
+                fontFamily: {
+                    "headline": ["Manrope"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+                },
+            },
+        },
+    }
+</script>
+<style>
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    body { background-color: #131313; color: #e5e2e1; font-family: 'Inter', sans-serif; }
+    .tab-btn { transition: all 0.2s ease; }
+    .tab-btn.active { background: linear-gradient(135deg, #4b8eff 0%, #adc6ff 100%); color: #002e69; }
+    .section-panel { display: none; }
+    .section-panel.active { display: block; }
+    .tt-cell { min-width: 120px; }
+    .lunch-cell { background: rgba(0, 220, 229, 0.08) !important; }
+    .free-cell { opacity: 0.3; }
+    /* Subject color classes */
+    .subj-0 { border-left: 3px solid #adc6ff; }
+    .subj-1 { border-left: 3px solid #00dce5; }
+    .subj-2 { border-left: 3px solid #e9b3ff; }
+    .subj-3 { border-left: 3px solid #a6e3a1; }
+    .subj-4 { border-left: 3px solid #ffb4ab; }
+    .subj-5 { border-left: 3px solid #fab387; }
+    .subj-6 { border-left: 3px solid #f9e2af; }
+    .subj-7 { border-left: 3px solid #89b4fa; }
+    .subj-lunch { border-left: 3px solid #00dce5; }
+</style>
+</head>
+<body class="overflow-hidden">
+
+<!-- Sidebar Navigation -->
+<aside class="fixed left-0 top-0 h-full w-64 bg-[#201f1f] flex flex-col border-r border-white/5 z-50">
+<div class="p-6">
+    <h1 class="text-lg font-black text-[#adc6ff] font-headline tracking-tighter">Command Center</h1>
+    <p class="text-[10px] font-label uppercase tracking-wider text-on-surface-variant">Attendance Pulse</p>
+</div>
+<nav class="flex-1 mt-4">
+    <a class="text-gray-500 py-3 px-6 flex items-center gap-3 hover:text-gray-300 hover:bg-[#2a2a2a] transition-all" href="{{ url_for('dashboard') }}">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span class="font-body text-sm">Home</span>
+    </a>
+    <a class="text-gray-500 py-3 px-6 flex items-center gap-3 hover:text-gray-300 hover:bg-[#2a2a2a] transition-all" href="{{ url_for('analytics') }}">
+        <span class="material-symbols-outlined">leaderboard</span>
+        <span class="font-body text-sm">Analytics</span>
+    </a>
+    <a class="text-gray-500 py-3 px-6 flex items-center gap-3 hover:text-gray-300 hover:bg-[#2a2a2a] transition-all" href="{{ url_for('manage_users') }}">
+        <span class="material-symbols-outlined">group</span>
+        <span class="font-body text-sm">Users</span>
+    </a>
+    <a class="bg-gradient-to-r from-[#adc6ff]/10 to-transparent border-l-4 border-[#adc6ff] text-[#adc6ff] py-3 px-6 flex items-center gap-3 font-medium transition-colors" href="{{ url_for('timetable.index') }}">
+        <span class="material-symbols-outlined">calendar_month</span>
+        <span class="font-body text-sm">Timetable</span>
+    </a>
+</nav>
+<div class="mt-auto border-t border-white/5 p-4">
+    <a class="text-gray-500 py-3 px-6 flex items-center gap-3 hover:text-gray-300 transition-all" href="{{ url_for('smtp_settings') }}">
+        <span class="material-symbols-outlined">settings</span>
+        <span class="font-body text-sm">Settings</span>
+    </a>
+    <a class="text-gray-500 py-3 px-6 flex items-center gap-3 hover:text-gray-300 transition-all" href="{{ url_for('logout') }}">
+        <span class="material-symbols-outlined">logout</span>
+        <span class="font-body text-sm">Logout</span>
+    </a>
+</div>
+</aside>
+
+<!-- Main Content Area -->
+<main class="ml-64 h-screen flex flex-col bg-background">
+<header class="bg-[#131313] flex justify-between items-center w-full px-8 py-4 z-40">
+    <div>
+        <h2 class="text-xl font-bold tracking-tighter text-[#adc6ff] font-headline">Master Timetable</h2>
+        <p class="text-xs text-on-surface-variant">Generated schedule for all sections</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <a href="{{ url_for('timetable.index') }}" class="bg-surface-container-high text-on-surface-variant px-4 py-2 rounded-full text-xs font-bold hover:bg-surface-container-highest transition-colors flex items-center gap-1">
+            <span class="material-symbols-outlined text-sm">refresh</span> Regenerate
+        </a>
+        <img alt="Admin" class="w-8 h-8 rounded-full border border-primary/20" src="https://ui-avatars.com/api/?name=Admin&background=0D8ABC&color=fff"/>
+    </div>
+</header>
+
+<div class="flex-1 overflow-y-auto p-8 space-y-8">
+
+    <!-- View Toggle: Sections vs Teachers -->
+    <div class="flex gap-2 mb-2">
+        <button onclick="showView('sections')" id="viewSectionsBtn" class="px-5 py-2 rounded-full text-xs font-bold transition-all bg-[#adc6ff] text-[#002e69]">
+            <span class="material-symbols-outlined text-sm align-middle mr-1">grid_view</span>Section View
+        </button>
+        <button onclick="showView('teachers')" id="viewTeachersBtn" class="px-5 py-2 rounded-full text-xs font-bold transition-all bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest">
+            <span class="material-symbols-outlined text-sm align-middle mr-1">person</span>Teacher View
+        </button>
+    </div>
+
+    <!-- ============ SECTION VIEW ============ -->
+    <div id="sectionView">
+        <!-- Section Tabs -->
+        <div class="flex gap-2 mb-6">
+            {% for sec in sections %}
+            <button onclick="showSection('{{ sec }}')" id="tab-{{ sec }}"
+                class="tab-btn px-6 py-2.5 rounded-xl text-sm font-bold {% if loop.first %}active{% else %}bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest{% endif %} transition-all">
+                Section {{ sec }}
+            </button>
+            {% endfor %}
+        </div>
+
+        <!-- Section Panels -->
+        {% for sec in sections %}
+        <div id="panel-{{ sec }}" class="section-panel {% if loop.first %}active{% endif %}">
+            <!-- Download Button -->
+            <div class="flex justify-end mb-4">
+                <a href="{{ url_for('timetable.download_section', section=sec) }}"
+                   class="bg-surface-container-high text-[#00dce5] px-4 py-2 rounded-full text-xs font-bold hover:bg-surface-container-highest transition-all flex items-center gap-1 border border-[#00dce5]/20">
+                    <span class="material-symbols-outlined text-sm">download</span>
+                    Download CSV — Section {{ sec }}
+                </a>
+            </div>
+
+            <!-- Timetable Grid -->
+            <div class="bg-surface-container rounded-xl border border-white/5 overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-white/5">
+                            <th class="p-4 text-left text-[10px] uppercase tracking-widest text-on-surface-variant font-label">Time Slot</th>
+                            {% for day in days %}
+                            <th class="p-4 text-center text-[10px] uppercase tracking-widest text-on-surface-variant font-label">{{ day }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for slot in slots %}
+                        <tr class="border-b border-white/5 hover:bg-surface-container-high/50 transition-colors">
+                            <td class="p-4 font-mono text-xs text-on-surface-variant whitespace-nowrap">{{ slot }}</td>
+                            {% for day in days %}
+                            <td class="p-2 tt-cell">
+                                {% if timetables.get(sec, {}).get(day, {}).get(slot) %}
+                                    {% set cell = timetables[sec][day][slot] %}
+                                    {% if cell.subject == 'LUNCH' %}
+                                    <div class="lunch-cell subj-lunch rounded-lg p-3 text-center">
+                                        <p class="text-xs font-bold text-[#00dce5]">🍽 LUNCH</p>
+                                    </div>
+                                    {% else %}
+                                    <div class="bg-surface-container-high rounded-lg p-3 subj-{{ loop.index0 % 8 }}">
+                                        <p class="text-xs font-bold">{{ cell.subject }}</p>
+                                        <p class="text-[10px] text-on-surface-variant mt-1">{{ cell.teacher }}</p>
+                                    </div>
+                                    {% endif %}
+                                {% else %}
+                                <div class="free-cell rounded-lg p-3 text-center">
+                                    <p class="text-xs text-on-surface-variant">—</p>
+                                </div>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- ============ TEACHER VIEW ============ -->
+    <div id="teacherView" style="display:none;">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-10">
+        {% for teacher, schedule in teacher_view.items() %}
+            <div class="bg-surface-container p-6 rounded-xl border border-white/5">
+                <div class="flex items-center gap-3 mb-4">
+                    <img alt="{{ teacher }}" class="w-10 h-10 rounded-full" src="https://ui-avatars.com/api/?name={{ teacher }}&background=4b8eff&color=fff&size=40"/>
+                    <div>
+                        <h5 class="font-bold text-sm">{{ teacher }}</h5>
+                        <p class="text-[10px] text-on-surface-variant uppercase tracking-wider">Faculty Schedule</p>
+                    </div>
+                </div>
+                {% for day in days %}
+                    {% if schedule.get(day) %}
+                    <div class="mb-3">
+                        <p class="text-[10px] uppercase tracking-widest text-[#adc6ff] font-label mb-1">{{ day }}</p>
+                        {% for entry in schedule[day] %}
+                        <div class="flex items-center gap-3 bg-surface-container-high rounded-lg px-3 py-2 mb-1">
+                            <span class="text-[10px] font-mono text-on-surface-variant w-32 shrink-0">{{ entry.slot }}</span>
+                            <span class="text-xs font-bold">{{ entry.subject }}</span>
+                            <span class="text-[10px] text-on-surface-variant ml-auto">Sec {{ entry.section }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        {% endfor %}
+        </div>
+    </div>
+
+</div>
+</main>
+
+<script>
+function showSection(sec) {
+    document.querySelectorAll('.section-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('active');
+        b.classList.add('bg-surface-container-high', 'text-on-surface-variant');
+    });
+    document.getElementById('panel-' + sec).classList.add('active');
+    const tab = document.getElementById('tab-' + sec);
+    tab.classList.add('active');
+    tab.classList.remove('bg-surface-container-high', 'text-on-surface-variant');
+}
+
+function showView(view) {
+    const secView = document.getElementById('sectionView');
+    const tchView = document.getElementById('teacherView');
+    const secBtn = document.getElementById('viewSectionsBtn');
+    const tchBtn = document.getElementById('viewTeachersBtn');
+
+    if (view === 'sections') {
+        secView.style.display = 'block';
+        tchView.style.display = 'none';
+        secBtn.className = 'px-5 py-2 rounded-full text-xs font-bold transition-all bg-[#adc6ff] text-[#002e69]';
+        tchBtn.className = 'px-5 py-2 rounded-full text-xs font-bold transition-all bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest';
+    } else {
+        secView.style.display = 'none';
+        tchView.style.display = 'block';
+        tchBtn.className = 'px-5 py-2 rounded-full text-xs font-bold transition-all bg-[#adc6ff] text-[#002e69]';
+        secBtn.className = 'px-5 py-2 rounded-full text-xs font-bold transition-all bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest';
+    }
+}
+</script>
+</body></html>

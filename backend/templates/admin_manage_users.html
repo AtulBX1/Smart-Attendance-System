@@ -255,14 +255,26 @@
         </div>
 
         <!-- Danger Zone Section -->
-        <div class="upload-section" style="margin-top: 30px; border-color: rgba(239, 68, 68, 0.3);">
-            <h3 style="color: #f43f5e;">⚠️ Danger Zone</h3>
-            <p class="desc">Resetting faculty data will permanently delete all faculty/mentor accounts and their subject assignments.</p>
-            
-            <form action="{{ url_for('reset_faculty') }}" method="POST" onsubmit="return confirm('⚠️ CRITICAL ACTION: This will permanently delete ALL faculty and mentor accounts, their class assignments, and pending OTP requests. This action cannot be undone. Are you sure you want to proceed?')">
-                <button type="submit" class="btn btn-logout" style="width: 100%; padding: 12px; font-size: 15px;">🚀 Reset All Faculty Data</button>
-            </form>
-            <p style="font-size: 11px; color: #fca5a5; margin-top: 10px; text-align: center;">Warning: This clears the faculty_classes, users (faculty/mentor), and OTP tables.</p>
+        <div style="display: grid; gap: 20px; grid-template-columns: 1fr 1fr; margin-top: 30px;">
+            <div class="upload-section" style="margin-bottom: 0; border-color: rgba(239, 68, 68, 0.3);">
+                <h3 style="color: #f43f5e;">⚠️ Reset Faculty</h3>
+                <p class="desc">Permanently delete all faculty/mentor accounts and their subject assignments.</p>
+                
+                <form action="{{ url_for('reset_faculty') }}" method="POST" onsubmit="return confirm('⚠️ CRITICAL ACTION: This will permanently delete ALL faculty and mentor accounts, their class assignments, and pending OTP requests. This action cannot be undone. Are you sure you want to proceed?')">
+                    <button type="submit" class="btn btn-logout" style="width: 100%; padding: 12px; font-size: 15px;">🚀 Reset All Faculty Data</button>
+                </form>
+                <p style="font-size: 11px; color: #fca5a5; margin-top: 10px; text-align: center;">Warning: Clears faculty_classes, users, and OTP tables.</p>
+            </div>
+
+            <div class="upload-section" style="margin-bottom: 0; border-color: rgba(239, 68, 68, 0.3);">
+                <h3 style="color: #f43f5e;">⚠️ Reset Students</h3>
+                <p class="desc">Permanently delete all student accounts, their profiles, and their complete attendance history.</p>
+                
+                <form action="/admin/reset_students" method="POST" onsubmit="return confirm('⚠️ CRITICAL ACTION: This will permanently delete ALL student records, their attendance data, and their login accounts. This action cannot be undone. Are you sure you want to proceed?')">
+                    <button type="submit" class="btn btn-logout" style="width: 100%; padding: 12px; font-size: 15px;">🚀 Reset All Student Data</button>
+                </form>
+                <p style="font-size: 11px; color: #fca5a5; margin-top: 10px; text-align: center;">Warning: Clears students, attendance, and student users.</p>
+            </div>
         </div>
     </div>
 

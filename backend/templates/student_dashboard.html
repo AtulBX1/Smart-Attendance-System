@@ -1,234 +1,217 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="dark" lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Student Dashboard — Smart Attendance</title>
-    <!-- Include Chart.js -->
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Kinetic Lumina | Student Portal</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-container-highest": "#353534",
+                        "error": "#ffb4ab",
+                        "surface-container": "#201f1f",
+                        "secondary": "#e9b3ff",
+                        "on-surface-variant": "#c1c6d7",
+                        "primary-fixed": "#d8e2ff",
+                        "on-primary": "#002e69",
+                        "surface-container-lowest": "#0e0e0e",
+                        "primary": "#adc6ff",
+                        "background": "#131313",
+                        "tertiary": "#00dce5",
+                        "surface": "#131313",
+                        "surface-container-high": "#2a2a2a"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            background-color: #0f172a;
-            color: #f1f5f9;
-        }
-
-        .navbar {
-            background-color: #1e293b;
-            padding: 15px 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #334155;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .navbar h2 {
-            margin: 0;
-            font-size: 20px;
-            font-weight: 600;
-            color: #f8fafc;
-        }
-
-        .btn-logout {
-            background: #ef4444;
-            padding: 8px 16px;
-            border-radius: 6px;
-            text-decoration: none;
-            color: white;
-            font-weight: bold;
-            transition: background 0.2s;
-        }
-
-        .btn-logout:hover {
-            background: #b91c1c;
-        }
-
-        .container {
-            padding: 30px;
-            max-width: 1200px;
-            margin: auto;
-            display: grid;
-            gap: 30px;
-            grid-template-columns: 1fr;
-        }
-
-        @media (min-width: 900px) {
-            .container {
-                grid-template-columns: 1fr 1fr;
-            }
-            .tt-section, .files-section {
-                grid-column: span 2;
-            }
-        }
-
-        .card {
-            background: #1e293b;
-            border-radius: 12px;
-            border: 1px solid #334155;
-            padding: 20px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
-        }
-
-        .card h3 {
-            margin-top: 0;
-            color: #38bdf8;
-            border-bottom: 1px solid #334155;
-            padding-bottom: 15px;
-            margin-bottom: 20px;
-        }
-
-        /* Profile details */
-        .profile-line {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 12px;
-            border-bottom: 1px dashed #334155;
-            padding-bottom: 5px;
-        }
-        .profile-label { color: #94a3b8; font-weight: 600; font-size: 14px; }
-        .profile-val { color: #f8fafc; font-weight: 600; font-size: 15px; text-align: right; }
-
-        /* Timetable grid */
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th { background: #0f172a; color: #94a3b8; text-transform: uppercase; font-size: 12px; padding: 12px; text-align: left; }
-        td { padding: 12px; border-bottom: 1px solid #334155; color: #cbd5e1; font-size: 14px; }
-        tr:hover td { background: rgba(255, 255, 255, 0.03); }
-
-        /* Files List */
-        .file-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid #334155;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            transition: border-color 0.2s;
-        }
-        .file-item:hover { border-color: #38bdf8; }
-        .file-info { display: flex; flex-direction: column; gap: 5px; }
-        .file-name { font-weight: bold; color: #e2e8f0; }
-        .file-date { font-size: 12px; color: #94a3b8; }
-        .btn-download {
-            background: #10b981;
-            color: white;
-            text-decoration: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            font-size: 13px;
-            font-weight: bold;
-        }
-        .btn-download:hover { background: #059669; }
-
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #131313; }
+        ::-webkit-scrollbar-thumb { background: #353534; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #414755; }
     </style>
 </head>
-<body>
+<body class="bg-background text-[#e5e2e1] font-body overflow-x-hidden">
 
-    <div class="navbar">
-        <h2>🎓 Student Dashboard</h2>
-        <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
-    </div>
-
-    <div class="container">
-        <!-- Profile info -->
-        <div class="card">
-            <h3>👤 Student Profile</h3>
-            <div class="profile-line">
-                <span class="profile-label">Name</span>
-                <span class="profile-val">{{ student.name }}</span>
+    <!-- Navbar -->
+    <header class="bg-surface-container-lowest border-b border-white/5 px-8 py-4 flex justify-between items-center sticky top-0 z-50">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                <span class="material-symbols-outlined">school</span>
             </div>
-            <div class="profile-line">
-                <span class="profile-label">Registration No</span>
-                <span class="profile-val">{{ student.registration_no }}</span>
-            </div>
-            <div class="profile-line">
-                <span class="profile-label">Class & Section</span>
-                <span class="profile-val">{{ student.class_name }} - {{ student.section }}</span>
-            </div>
-            <div class="profile-line">
-                <span class="profile-label">Mentor</span>
-                <span class="profile-val">{{ student.mentor_name or 'Not Assigned' }}</span>
+            <div>
+                <h1 class="text-xl font-bold font-headline text-primary tracking-tight">Kinetic Lumina</h1>
+                <p class="text-[10px] text-on-surface-variant tracking-widest uppercase font-label">Student Portal</p>
             </div>
         </div>
-
-        <!-- Attendance Chart -->
-        <div class="card">
-            <h3>📊 Subject-wise Attendance</h3>
-            <canvas id="attendanceChart" height="200"></canvas>
+        <div class="flex items-center gap-4">
+            <span class="text-xs font-semibold px-4 py-2 bg-surface-container-high rounded-full">{{ student.name }}</span>
+            <a href="{{ url_for('logout') }}" class="text-error hover:bg-error/10 px-4 py-2 rounded-full text-xs font-bold uppercase transition flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm">logout</span> Logout
+            </a>
         </div>
+    </header>
 
-        <!-- Timetable -->
-        <div class="card tt-section">
-            <h3 style="color: #f59e0b;">📅 My Timetable</h3>
-            {% if timetable %}
-            <table>
-                <thead>
-                    <tr>
-                        <th>Day</th>
-                        <th>Time Slot</th>
-                        <th>Subject</th>
-                        <th>Teacher</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in timetable %}
-                    <tr>
-                        <td style="font-weight: bold; color: #38bdf8;">{{ row.day_of_week }}</td>
-                        <td>{{ row.time_slot }}</td>
-                        <td>{{ row.subject }}</td>
-                        <td>{{ row.teacher }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <p style="color: #94a3b8;">No timetable generated yet.</p>
-            {% endif %}
-        </div>
-
-        <!-- Admin Files -->
-        <div class="card files-section">
-            <h3 style="color: #10b981;">📁 Class Resources & Notices</h3>
-            {% if admin_files %}
-                <div style="display: grid; gap: 10px;">
-                {% for file in admin_files %}
-                <div class="file-item">
-                    <div class="file-info">
-                        <span class="file-name">{{ file.filename }}</span>
-                        <span class="file-date">Uploaded: {{ file.upload_date }}</span>
+    <main class="max-w-7xl mx-auto p-8 space-y-8">
+        
+        <!-- Top Row: Profile Info -->
+        <div class="bg-surface-container p-8 rounded-2xl flex flex-col md:flex-row gap-8 items-center border border-white/5 relative overflow-hidden">
+            <!-- Decorative blobs -->
+            <div class="absolute -right-16 -top-16 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
+            
+            <img src="https://ui-avatars.com/api/?name={{ student.name }}&background=0D8ABC&color=fff&size=128" alt="Profile" class="w-24 h-24 rounded-full border-4 border-surface-container-high shadow-xl relative z-10">
+            
+            <div class="flex-1 relative z-10">
+                <h2 class="text-3xl font-extrabold font-headline mb-1">{{ student.name }}</h2>
+                <p class="text-sm text-on-surface-variant flex items-center gap-2 mb-4">
+                    <span class="material-symbols-outlined text-sm">badge</span> ID: <span class="text-white">{{ student.registration_no }}</span>
+                </p>
+                <div class="flex flex-wrap gap-4">
+                    <div class="bg-surface-container-high px-4 py-2 rounded-lg">
+                        <p class="text-[10px] text-on-surface-variant uppercase font-label">Class</p>
+                        <p class="text-sm font-bold text-tertiary">{{ student.class_name }}</p>
                     </div>
-                    <a href="{{ url_for('static', filename=file.filepath) }}" class="btn-download" download>Download</a>
+                    <div class="bg-surface-container-high px-4 py-2 rounded-lg">
+                        <p class="text-[10px] text-on-surface-variant uppercase font-label">Section</p>
+                        <p class="text-sm font-bold text-tertiary">{{ student.section }}</p>
+                    </div>
+                    <div class="bg-surface-container-high px-4 py-2 rounded-lg">
+                        <p class="text-[10px] text-on-surface-variant uppercase font-label">Assigned Mentor</p>
+                        <p class="text-sm font-bold text-primary">{{ student.mentor_name or 'Unassigned' }}</p>
+                    </div>
                 </div>
-                {% endfor %}
-                </div>
-            {% else %}
-                <p style="color: #94a3b8;">No resources uploaded for your class yet.</p>
-            {% endif %}
+            </div>
         </div>
-    </div>
 
-    <!-- Chart Setup -->
+        <!-- Middle Row: Attendance Chart -->
+        <div class="bg-surface-container p-8 rounded-2xl border border-white/5 relative">
+            <div class="flex items-center gap-2 mb-8">
+                <span class="material-symbols-outlined text-primary">monitoring</span>
+                <h3 class="text-lg font-bold font-headline">Subject-wise Attendance</h3>
+            </div>
+            
+            <!-- EXPLICITLY CONSTRAINED CHART WRAPPER TO PREVENT INFINITE RESIZE LOOP -->
+            <div class="w-full relative" style="height: 320px; min-height: 320px; max-height: 320px;">
+                <canvas id="attendanceChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Bottom Row: Timetable and Resources -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            <!-- Timetable -->
+            <div class="bg-surface-container p-8 rounded-2xl border border-white/5 flex flex-col h-[500px] lg:col-span-2">
+                <div class="flex items-center gap-2 mb-6">
+                    <span class="material-symbols-outlined text-tertiary">calendar_view_week</span>
+                    <h3 class="text-lg font-bold font-headline">My Timetable</h3>
+                </div>
+                
+                <div class="flex-1 overflow-auto scrollbar-thin rounded-xl border border-surface-container-high relative max-h-[400px]">
+                    {% if timetable_grid %}
+                    <table class="w-full text-left border-collapse min-w-[800px]">
+                        <thead>
+                            <tr class="bg-surface-container-high">
+                                <th class="p-4 text-[11px] font-bold text-on-surface-variant uppercase tracking-wider sticky top-0 z-10 w-40 bg-surface-container-high border-b border-surface-container-highest/50 shadow-sm">Time Slot</th>
+                                <th class="p-4 text-[11px] font-bold text-tertiary uppercase tracking-wider sticky top-0 z-10 bg-surface-container-high border-b border-surface-container-highest/50 shadow-sm text-center">Monday</th>
+                                <th class="p-4 text-[11px] font-bold text-tertiary uppercase tracking-wider sticky top-0 z-10 bg-surface-container-high border-b border-surface-container-highest/50 shadow-sm text-center">Tuesday</th>
+                                <th class="p-4 text-[11px] font-bold text-tertiary uppercase tracking-wider sticky top-0 z-10 bg-surface-container-high border-b border-surface-container-highest/50 shadow-sm text-center">Wednesday</th>
+                                <th class="p-4 text-[11px] font-bold text-tertiary uppercase tracking-wider sticky top-0 z-10 bg-surface-container-high border-b border-surface-container-highest/50 shadow-sm text-center">Thursday</th>
+                                <th class="p-4 text-[11px] font-bold text-tertiary uppercase tracking-wider sticky top-0 z-10 bg-surface-container-high border-b border-surface-container-highest/50 shadow-sm text-center">Friday</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-surface-container-highest">
+                            {% for row in timetable_grid %}
+                            <tr class="hover:bg-surface-container-highest/50 transition-colors">
+                                <td class="p-4 text-[11px] font-bold text-on-surface-variant border-r border-surface-container-highest align-middle uppercase tracking-widest whitespace-nowrap">{{ row.time_slot }}</td>
+                                {% for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] %}
+                                    <td class="p-4 border-r border-surface-container-highest last:border-r-0 align-top">
+                                        {% if row[day] %}
+                                            <div class="bg-primary/5 hover:bg-primary/10 transition border border-primary/20 rounded-lg p-3 flex flex-col items-center justify-center text-center h-full min-h-[70px]">
+                                                <span class="text-xs font-bold text-white mb-1.5 leading-tight">{{ row[day].subject }}</span>
+                                                <span class="text-[10px] text-primary uppercase font-label flex items-center gap-1 opacity-90">
+                                                    <span class="material-symbols-outlined text-[12px]">person</span> {{ row[day].teacher }}
+                                                </span>
+                                            </div>
+                                        {% else %}
+                                            <div class="flex items-center justify-center h-full min-h-[70px]">
+                                                <div class="text-center text-on-surface-variant/30 text-[10px] uppercase tracking-widest font-bold font-label">Free</div>
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                        <div class="flex flex-col items-center justify-center h-full text-on-surface-variant opacity-70">
+                            <span class="material-symbols-outlined text-4xl mb-2">event_busy</span>
+                            <p class="text-sm">No timetable generated yet.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Resources -->
+            <div class="bg-surface-container p-8 rounded-2xl border border-white/5 flex flex-col h-[500px]">
+                <div class="flex items-center gap-2 mb-6">
+                    <span class="material-symbols-outlined text-secondary">folder_open</span>
+                    <h3 class="text-lg font-bold font-headline">Class Resources</h3>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto pr-4 scrollbar-thin">
+                    {% if admin_files %}
+                        <div class="space-y-3">
+                        {% for file in admin_files %}
+                            <div class="bg-surface-container-high p-4 rounded-xl flex items-center justify-between group hover:bg-surface-container-highest transition-colors cursor-pointer">
+                                <div class="flex items-start gap-3">
+                                    <div class="w-10 h-10 rounded-lg bg-surface flex items-center justify-center text-on-surface-variant group-hover:text-secondary transition-colors">
+                                        <span class="material-symbols-outlined">draft</span>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-bold text-white truncate max-w-[200px] sm:max-w-xs">{{ file.filename }}</p>
+                                        <p class="text-[10px] text-on-surface-variant uppercase font-label mt-1">Uploaded: {{ file.upload_date }}</p>
+                                    </div>
+                                </div>
+                                <a href="{{ url_for('static', filename=file.filepath) }}" download class="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center text-secondary hover:bg-secondary hover:text-surface-container-lowest transition-colors">
+                                    <span class="material-symbols-outlined text-[18px]">download</span>
+                                </a>
+                            </div>
+                        {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="flex flex-col items-center justify-center h-full text-on-surface-variant opacity-70">
+                            <span class="material-symbols-outlined text-4xl mb-2">inbox</span>
+                            <p class="text-sm">No resources uploaded.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Chart Configuration -->
     <script>
         const attData = {{ attendance_data | tojson | safe }};
         const labels = attData.map(d => d.Subject);
         const dataPct = attData.map(d => d.attendance_pct);
-        
-        // Color mapping based on pct
-        const bgColors = dataPct.map(pct => {
-            if (pct >= 85) return 'rgba(16, 185, 129, 0.7)'; // Green
-            if (pct >= 75) return 'rgba(56, 189, 248, 0.7)';  // Blue
-            if (pct >= 60) return 'rgba(245, 158, 11, 0.7)';  // Yellow
-            return 'rgba(239, 68, 68, 0.7)';                  // Red
-        });
-        
-        const borderColors = bgColors.map(c => c.replace('0.7', '1'));
 
         const ctx = document.getElementById('attendanceChart').getContext('2d');
+        
         new Chart(ctx, {
             type: 'bar',
             data: {
@@ -236,30 +219,42 @@
                 datasets: [{
                     label: 'Attendance %',
                     data: dataPct,
-                    backgroundColor: bgColors,
-                    borderColor: borderColors,
-                    borderWidth: 1,
-                    borderRadius: 4
+                    backgroundColor: function(context) {
+                        const chart = context.chart;
+                        const {ctx, chartArea} = chart;
+                        if (!chartArea) return null;
+                        
+                        // Pick color based on value
+                        const val = context.raw;
+                        let colorStart, colorEnd;
+                        
+                        // Tailwind Hex codes matching Kinetic Lumina
+                        if (val >= 85) { colorStart = '#00dce5'; colorEnd = '#00a1a7'; } // Tertiary / Cyan
+                        else if (val >= 75) { colorStart = '#adc6ff'; colorEnd = '#4b8eff'; } // Primary / Blue
+                        else if (val >= 60) { colorStart = '#e9b3ff'; colorEnd = '#7d01b1'; } // Secondary / Purple
+                        else { colorStart = '#ffb4ab'; colorEnd = '#93000a'; } // Error / Red
+
+                        const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+                        gradient.addColorStop(0, colorEnd);
+                        gradient.addColorStop(1, colorStart);
+                        return gradient;
+                    },
+                    borderRadius: 8,
+                    barPercentage: 0.5
                 }]
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 100,
-                        grid: { color: '#334155' },
-                        ticks: { color: '#94a3b8' }
-                    },
-                    x: {
-                        grid: { display: false },
-                        ticks: { color: '#94a3b8' }
-                    }
-                },
+                maintainAspectRatio: false, // Vital for positional constraint
                 plugins: {
                     legend: { display: false },
                     tooltip: {
+                        backgroundColor: '#2a2a2a',
+                        titleColor: '#e5e2e1',
+                        bodyColor: '#c1c6d7',
+                        padding: 12,
+                        cornerRadius: 8,
+                        displayColors: false,
                         callbacks: {
                             label: function(context) {
                                 let row = attData[context.dataIndex];
@@ -267,10 +262,21 @@
                             }
                         }
                     }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        grid: { color: '#353534', drawBorder: false },
+                        ticks: { color: '#8b90a0', font: { family: 'Inter', size: 10 } }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#8b90a0', font: { family: 'Inter', size: 10, weight: 'bold' } }
+                    }
                 }
             }
         });
     </script>
-
 </body>
 </html>
