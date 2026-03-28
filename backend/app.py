@@ -821,6 +821,13 @@ def student_dashboard():
     )
     admin_files = files_df.to_dict(orient="records")
     
+    # 4. Counselling Sessions
+    counselling_df = pd.read_sql_query(
+        "SELECT * FROM counselling_sessions WHERE LOWER(student_id) = ? AND status = 'Scheduled' ORDER BY meeting_time ASC",
+        conn, params=(registration_no.lower(),)
+    )
+    counselling_sessions = counselling_df.to_dict(orient="records")
+    
     conn.close()
 
     return render_template(
@@ -828,7 +835,8 @@ def student_dashboard():
         student=student,
         attendance_data=attendance_data,
         timetable_grid=timetable_grid,
-        admin_files=admin_files
+        admin_files=admin_files,
+        counselling_sessions=counselling_sessions
     )
 
 # ---- REST API ENDPOINTS ---- #
@@ -1622,12 +1630,33 @@ def api_student_subjects(student_id):
 
     conn = get_db_connection()
     try:
-        # Get student name
-        name_row = pd.read_sql_query(
-            "SELECT DISTINCT Student_Name FROM attendance WHERE StudentID = ? LIMIT 1",
+        # Get student info from 'students' table first (source of truth)
+        student_info = pd.read_sql_query(
+            "SELECT name, section, student_email, parent_email FROM students WHERE registration_no = ? LIMIT 1",
             conn, params=(student_id,)
         )
-        student_name = name_row.iloc[0]["Student_Name"] if not name_row.empty else student_id
+        
+        if not student_info.empty:
+            student_name = student_info.iloc[0]["name"]
+            section = student_info.iloc[0]["section"]
+            student_email = student_info.iloc[0]["student_email"] or ""
+            parent_contact = student_info.iloc[0]["parent_email"] or "N/A"
+        else:
+            # Fallback to attendance table if not in students table (unlikely if data is consistent)
+            name_row = pd.read_sql_query(
+                "SELECT DISTINCT Student_Name, Section, Parent_Contact FROM attendance WHERE StudentID = ? LIMIT 1",
+                conn, params=(student_id,)
+            )
+            if not name_row.empty:
+                student_name = name_row.iloc[0]["Student_Name"]
+                section = name_row.iloc[0]["Section"]
+                parent_contact = name_row.iloc[0]["Parent_Contact"] or "N/A"
+                student_email = ""
+            else:
+                student_name = student_id
+                section = "N/A"
+                parent_contact = "N/A"
+                student_email = ""
 
         # Get subject-wise stats
         query = """
@@ -1650,32 +1679,6 @@ def api_student_subjects(student_id):
         )
         overall_pct = float(overall.iloc[0]["overall_pct"]) if not overall.empty and overall.iloc[0]["overall_pct"] is not None else 0.0
         total_subjects = int(overall.iloc[0]["subjects"]) if not overall.empty else 0
-
-        # Get section
-        section_row = pd.read_sql_query(
-            "SELECT DISTINCT Section FROM attendance WHERE StudentID = ? LIMIT 1",
-            conn, params=(student_id,)
-        )
-        section = section_row.iloc[0]["Section"] if not section_row.empty else "N/A"
-
-        # Get parent contact
-        parent_row = pd.read_sql_query(
-            "SELECT DISTINCT Parent_Contact FROM attendance WHERE StudentID = ? LIMIT 1",
-            conn, params=(student_id,)
-        )
-        parent_contact = parent_row.iloc[0]["Parent_Contact"] if not parent_row.empty else "N/A"
-
-        # Get student email (if available — column may not exist)
-        student_email = ""
-        try:
-            email_row = pd.read_sql_query(
-                "SELECT DISTINCT Email FROM attendance WHERE StudentID = ? LIMIT 1",
-                conn, params=(student_id,)
-            )
-            if not email_row.empty and "Email" in email_row.columns:
-                student_email = email_row.iloc[0]["Email"] or ""
-        except Exception:
-            student_email = ""
 
         subjects = []
         for _, row in df.iterrows():
@@ -1838,10 +1841,34 @@ def faculty_send_student_email():
         if success:
             return jsonify({"success": True, "message": f"Email sent to {email_to}"})
 
-    # Console fallback
-    print(f"[FACULTY EMAIL] To: {email_to or 'N/A'} | Student: {student_id} | From: {faculty_name}")
-    print(f"[FACULTY EMAIL] Message: {message_text}")
-    return jsonify({"success": True, "message": f"Message logged for {student_id} (email delivery attempted)"})
+# ---- Faculty: Schedule Counselling Session ---- #
+@app.route("/faculty/schedule_counselling", methods=["POST"])
+@login_required(role="faculty")
+def faculty_schedule_counselling():
+    """Saves a scheduled counselling session for a student."""
+    data = request.get_json()
+    student_id = data.get("student_id", "")
+    meeting_time = data.get("meeting_time", "")
+    message = data.get("message", "")
+
+    if not student_id or not meeting_time:
+        return jsonify({"success": False, "message": "Student ID and Meeting Time are required."}), 400
+
+    faculty_id = session.get("username", "Faculty")
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO counselling_sessions (student_id, faculty_id, meeting_time, message) VALUES (?, ?, ?, ?)",
+            (student_id, faculty_id, meeting_time, message)
+        )
+        conn.commit()
+        return jsonify({"success": True, "message": f"Counselling session scheduled for {student_id} at {meeting_time}"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

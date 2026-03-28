@@ -1,129 +1,203 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
+    <!-- Anti-FOUC Theme Check -->
+    <script>
+        (function() {
+            try {
+                var savedTheme = localStorage.getItem('lumina_theme');
+                if (savedTheme === 'light') {
+                    document.documentElement.classList.add('light-mode');
+                } else if (savedTheme === 'dark') {
+                    document.documentElement.classList.remove('light-mode');
+                }
+            } catch (e) {}
+        })();
+    </script>
+
     <meta charset="UTF-8">
     <title>Faculty Portal — Lumina Sentinel</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+
         :root {
-            --bg: #1e1e2e; --surface: #181825; --overlay: #e2e8f0;
-            --text: #0f172a; --text-muted: #64748b; 
-            --primary: #4f46e5; --primary-hover: #4338ca; --secondary: #06b6d4;
-            --red: #f43f5e; --yellow: #f59e0b; --green: #10b981;
-            --surface-hover: #f1f5f9; --bg-elevated: #181825; --surface-dim: #f8fafc;
-            --shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);
-            --shadow-lg: 0 20px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.01);
+            --bg: #000000;
+            --surface: #121212;
+            --border: #1e1e1e;
+            --text: #ffffff;
+            --text-muted: #888888; 
+            --primary: #8b5cf6;
+            --secondary: #3b82f6;
+            --red: #ff453a; --yellow: #ff9f0a; --green: #32d74b;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
-        body { background-color: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden; letter-spacing: -0.01em; }
+        body { background: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden; letter-spacing: -0.01em; }
         
         /* Layout Framework */
-        .sidebar { width: 260px; background: var(--surface); border-right: 1px solid var(--overlay); padding: 2rem 1.5rem; display: flex; flex-direction: column; z-index: 10; box-shadow: none !important; }
+        .sidebar { width: 260px; background: var(--surface); border-right: 1px solid var(--border); padding: 2rem 1.5rem; display: flex; flex-direction: column; z-index: 10; }
         .sidebar-brand { font-size: 1.2rem; font-weight: 700; color: var(--text); margin-bottom: 2.5rem; display: flex; align-items: center; gap: 12px; }
-        .sidebar-brand-icon { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, var(--primary), var(--secondary)); display: inline-block; box-shadow: none !important; }
-        .nav-item { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-radius: 8px; color: var(--text-muted); text-decoration: none; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.95rem; transition: none !important; cursor: pointer; border: 1px solid transparent; }
-        .nav-item:hover { background: transparent !important; color: inherit !important; border: 1px solid transparent !important; transform: none !important; box-shadow: none !important; }
-        .nav-item.active { background: rgba(0,0,0,0.2) !important; color: inherit; border: 1px solid rgba(255,255,255,0.1); transform: none !important; box-shadow: none !important; }
-        .sidebar-bottom { margin-top: auto; display: flex; align-items: center; gap: 12px; padding-top: 1.5rem; border-top: 1px solid var(--overlay); }
-        .avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--secondary)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold; font-size: 1.1rem; box-shadow: none !important; }
+        .sidebar-brand-icon { width: 32px; height: 32px; border-radius: 8px; background: var(--primary); display: inline-block; }
+        .nav-item { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-radius: 8px; color: var(--text-muted); text-decoration: none; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.95rem; transition: filter 0.2s ease, color 0.2s ease; cursor: pointer; border: 1px solid transparent; background: transparent; }
+        .nav-item:hover { color: var(--text); filter: brightness(1.2); }
+        .nav-item.active { background: var(--primary); color: #fff; }
+        .sidebar-bottom { margin-top: auto; display: flex; align-items: center; gap: 12px; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+        .avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold; font-size: 1.1rem; }
         
         .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); position: relative; }
-        .navbar { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 2.5rem; border-bottom: 1px solid var(--overlay); background: var(--surface); z-index: 5; box-shadow: none !important; }
+        .navbar { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 2.5rem; border-bottom: 1px solid var(--border); background: var(--surface); z-index: 5; }
         .content-wrap { padding: 3rem; overflow-y: auto; flex: 1; }
         
         /* Components */
-        .card { background: var(--surface); border: 1px solid var(--overlay); border-radius: 16px; padding: 2rem; text-align: left; cursor: pointer; transition: none !important; position: relative; overflow: hidden; box-shadow: none !important; }
-        .card:hover { background: transparent !important; color: inherit !important; border: 1px solid transparent !important; transform: none !important; box-shadow: none !important; }
-        .card.active { background: rgba(0,0,0,0.2) !important; color: inherit; border: 1px solid rgba(255,255,255,0.1); transform: none !important; box-shadow: none !important; }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; text-align: left; cursor: pointer; transition: filter 0.2s ease, border-color 0.2s; position: relative; overflow: hidden; }
+        .card:hover { filter: brightness(1.2); border-color: #333; }
+        .card.active { border: 1px solid var(--primary); }
         .card h3 { font-size: 1.15rem; color: var(--text); font-weight: 700; margin-bottom: 6px; }
         .card p { font-size: 0.9rem; color: var(--text-muted); font-weight: 500; }
         
         /* Attendance List & Radios */
-        .attendance-form { display: none; background: #181825; padding: 2.5rem; border-radius: 16px; border: 1px solid var(--overlay); margin-top: 2rem; animation: fadeIn 0.4s ease; box-shadow: none !important; }
+        .attendance-form { display: none; background: var(--surface); padding: 2.5rem; border-radius: 12px; border: 1px solid var(--border); margin-top: 2rem; animation: fadeIn 0.4s ease; }
         .attendance-form.active { display: block; }
-        .student-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--overlay); transition: none !important; margin-bottom: 10px; }
-        .student-row:nth-child(odd) { background: #181825; }
-        .student-row:nth-child(even) { background: #2a2a3d; }
-        .student-row:hover { background: transparent !important; color: inherit !important; border: 1px solid transparent !important; transform: none !important; box-shadow: none !important; }
-        .student-name { font-weight: 600; color: #cdd6f4; font-size: 1rem; }
-        .student-id { font-size: 0.85rem; color: #6c7086; display: block; margin-top: 4px; font-weight: 500; }
+        .student-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-radius: 8px; border: 1px solid transparent; transition: filter 0.2s ease, border-color 0.2s; margin-bottom: 10px; background: #0a0a0a; }
+        .student-row:nth-child(even) { background: #121212; }
+        .student-row:hover { filter: brightness(1.2); border: 1px solid var(--border); }
+        .student-name { font-weight: 600; color: #fff; font-size: 1rem; }
+        .student-id { font-size: 0.85rem; color: var(--text-muted); display: block; margin-top: 4px; font-weight: 500; }
         
         .radio-group { display: flex; gap: 8px; }
-        .radio-group label { cursor: pointer; padding: 8px 20px; border-radius: 20px; border: 1px solid #45475a; font-size: 0.85rem; font-weight: 600; color: #bac2de; transition: none !important; background: #313244; }
+        .radio-group label { cursor: pointer; padding: 8px 20px; border-radius: 6px; border: 1px solid var(--border); font-size: 0.85rem; font-weight: 600; color: var(--text-muted); transition: filter 0.2s ease; background: #0a0a0a; }
         .radio-group input[type="radio"] { display: none; }
         .radio-group input[type="radio"]:checked+label { border-color: transparent; }
-        .radio-group input[type="radio"]:checked+label.p-label { background: #0a5f02; color: #ffffff !important; box-shadow: none !important; }
-        .radio-group input[type="radio"]:checked+label.a-label { background: #45475a; color: #cdd6f4 !important; box-shadow: none !important; }
+        .radio-group input[type="radio"]:checked+label.p-label { background: var(--green); color: #000 !important; font-weight: 700 !important; }
+        .radio-group input[type="radio"]:checked+label.a-label { background: var(--red); color: #000 !important; font-weight: 700 !important; }
         
-        .btn-submit { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: #fff; border: none; padding: 14px 28px; border-radius: 12px; cursor: pointer; font-size: 1.05rem; font-weight: 700; width: 100%; margin-top: 2rem; transition: none !important; box-shadow: none !important; }
-        .btn-submit:hover { background: transparent !important; color: inherit !important; border: 1px solid transparent !important; transform: none !important; box-shadow: none !important; }
+        .btn-submit { background: var(--primary); color: #fff; border: none; padding: 14px 28px; border-radius: 8px; cursor: pointer; font-size: 1.05rem; font-weight: 700; width: 100%; margin-top: 2rem; transition: filter 0.2s ease; }
+        .btn-submit:hover { filter: brightness(1.2); }
         
         /* Mentee Tracking */
         .summary-row { display: flex; gap: 1.25rem; margin-bottom: 2rem; flex-wrap: wrap; }
-        .summary-card { border-radius: 16px; padding: 1.5rem; flex: 1; min-width: 150px; text-align: center; cursor: pointer; transition: none !important; border: 1px solid var(--overlay); background: var(--surface); position: relative; overflow: hidden; box-shadow: none !important; }
-        .summary-card:hover { background: transparent !important; color: inherit !important; border: 1px solid transparent !important; transform: none !important; box-shadow: none !important; }
-        .summary-card .count { font-size: 2.25rem; font-weight: 800; color: var(--text); letter-spacing: -0.05em; }
-        .summary-card .label { font-size: 0.85rem; margin-top: 6px; font-weight: 600; color: var(--text-muted); text-transform: none !important; letter-spacing: 0.05em; }
+        .summary-card { border-radius: 12px; padding: 1.5rem; flex: 1; min-width: 150px; text-align: center; cursor: pointer; transition: filter 0.2s ease, border-color 0.2s; border: 1px solid var(--border); background: var(--surface); overflow: hidden; }
+        .summary-card:hover { filter: brightness(1.2); border-color: #333; }
+        .summary-card .count { font-size: 2.25rem; font-weight: 800; color: #fff; letter-spacing: -0.05em; }
+        .summary-card .label { font-size: 0.85rem; margin-top: 6px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.05em; }
         
         .risk-pills { display: flex; gap: 10px; margin-bottom: 2rem; flex-wrap: wrap; }
-        .risk-pill { padding: 8px 20px; border-radius: 24px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: 1px solid var(--overlay); background: var(--surface); color: var(--text-muted); transition: none !important; box-shadow: none !important; }
-        .risk-pill:hover { background: transparent !important; color: inherit !important; border: 1px solid transparent !important; transform: none !important; box-shadow: none !important; }
-        .risk-pill.active { background: rgba(0,0,0,0.2) !important; color: inherit; border: 1px solid rgba(255,255,255,0.1); transform: none !important; box-shadow: none !important; }
+        .risk-pill { padding: 8px 20px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); transition: filter 0.2s ease; }
+        .risk-pill:hover { filter: brightness(1.5); color: #fff; }
+        .risk-pill.active { background: var(--primary); color: #fff; border: 1px solid var(--primary); }
         
-        table { width: 100%; border-collapse: separate; border-spacing: 0 8px; text-align: left; }
-        th { padding: 12px 20px; color: var(--text-muted); font-size: 0.75rem; text-transform: none !important; letter-spacing: 0.05em; border: none; font-weight: 700; }
-        td { padding: 16px 20px; font-size: 0.95rem; font-weight: 500; border: none; background: transparent; transition: none !important; border-top: 1px solid var(--overlay); border-bottom: 1px solid var(--overlay); }
-        td:first-child { border-left: 1px solid var(--overlay); border-top-left-radius: 12px; border-bottom-left-radius: 12px; }
-        td:last-child { border-right: 1px solid var(--overlay); border-top-right-radius: 12px; border-bottom-right-radius: 12px; }
-        tr:hover td { background: rgba(255, 255, 255, 0.05); border-color: #cbd5e1; }
-        .clickable-name { color: var(--primary); cursor: pointer; font-weight: 600; text-decoration: none; display: inline-block; padding: 2px 0; } .clickable-name:hover { background: transparent !important; color: inherit !important; border: 1px solid transparent !important; transform: none !important; box-shadow: none !important; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0 4px; text-align: left; }
+        th { padding: 12px 20px; color: var(--text-muted); font-size: 0.75rem; letter-spacing: 0.05em; border: none; font-weight: 700; text-transform: uppercase; }
+        td { padding: 16px 20px; font-size: 0.95rem; font-weight: 500; border: none; background: var(--surface); transition: filter 0.2s ease; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); color: #fff; }
+        td:first-child { border-left: 1px solid var(--border); border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
+        td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
+        tr:hover td { filter: brightness(1.2); border-color: #333; }
+        .clickable-name { color: var(--primary); cursor: pointer; font-weight: 600; text-decoration: none; display: inline-block; padding: 2px 0; transition: filter 0.2s; } .clickable-name:hover { filter: brightness(1.2); }
         
-        .risk-badge { padding: 6px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; display: inline-block; border: 1px solid transparent; }
-        .badge-safe { background: #ecfdf5; color: var(--green); border-color: #a7f3d0; }
-        .badge-watch { background: #fffbeb; color: var(--yellow); border-color: #fde68a; }
-        .badge-critical { background: #fff1f2; color: var(--red); border-color: #fecdd3; }
+        .risk-badge { padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; display: inline-block; border: none; }
+        .badge-safe { background: #0a3d1b; color: var(--green); }
+        .badge-watch { background: #3d2906; color: var(--yellow); }
+        .badge-critical { background: #3d0e11; color: var(--red); }
         
         /* Modals */
-        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.6); backdrop-filter: blur(8px); z-index: 1000; justify-content: center; align-items: center; }
-        .modal { background: var(--surface); padding: 2.5rem; border-radius: 20px; border: 1px solid var(--overlay); width: 480px; max-width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: none !important; animation: scaleUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        .modal h3 { margin-bottom: 1.5rem; color: var(--text); border-bottom: 1px solid var(--overlay); padding-bottom: 1rem; font-weight: 700; font-size: 1.25rem; }
-        .modal ul { list-style: none; padding: 0; max-height: 150px; overflow-y: auto; color: var(--red); font-size: 0.9rem; background: #fff1f2; padding: 16px; border-radius: 12px; border: 1px solid #fecdd3; font-weight: 500; }
-        .modal ul li { padding: 6px 0; border-bottom: 1px solid #fecdd3; } .modal ul li:last-child { border-bottom: none; }
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
+        .modal { background: var(--surface); padding: 2.5rem; border-radius: 12px; border: 1px solid var(--border); width: 480px; max-width: 90%; max-height: 90vh; overflow-y: auto; animation: scaleUp 0.15s ease-out; }
+        .modal h3 { margin-bottom: 1.5rem; color: #fff; border-bottom: 1px solid var(--border); padding-bottom: 1rem; font-weight: 700; font-size: 1.25rem; }
+        .modal ul { list-style: none; padding: 0; max-height: 150px; overflow-y: auto; color: var(--red); font-size: 0.9rem; background: #260a0a; padding: 16px; border-radius: 8px; border: 1px solid #3d0e11; font-weight: 500; }
+        .modal ul li { padding: 6px 0; border-bottom: 1px solid #3d0e11; } .modal ul li:last-child { border-bottom: none; }
         .modal-input-group { margin-top: 1.5rem; display: flex; flex-direction: column; }
-        .modal-input-group label { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; font-weight: 600; text-transform: none !important; letter-spacing: 0.05em; }
-        .modal-input-group input { background: var(--surface); color: var(--text); border: 2px solid var(--overlay); padding: 12px 16px; border-radius: 10px; font-size: 1rem; font-weight: 500; outline: none; transition: none !important; }
-        .modal-input-group input:focus { border-color: var(--primary); box-shadow: none !important; }
+        .modal-input-group label { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; font-weight: 600; letter-spacing: 0.05em; }
+        .modal-input-group input { background: #000; color: #fff; border: 1px solid var(--border); padding: 12px 16px; border-radius: 6px; font-size: 1rem; font-weight: 500; outline: none; transition: border 0.2s ease; }
+        .modal-input-group input:focus { border-color: var(--primary); }
         .modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem; }
         
-        @keyframes scaleUp { from { transform: none !important; opacity: 0; } to { transform: none !important; opacity: 1; } }
-        @keyframes fadeIn { from { opacity: 0; transform: none !important; } to { opacity: 1; transform: none !important; } }
+        @keyframes scaleUp { from { transform: scale(0.98); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         
         /* Student Details Popup */
-        .popup-modal { background: var(--surface); border-radius: 20px; border: 1px solid var(--overlay); width: 800px; max-width: 95%; max-height: 85vh; overflow-y: auto; position: relative; margin: auto; margin-top: 5vh; box-shadow: none !important; animation: scaleUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        .popup-header { display: flex; justify-content: space-between; align-items: center; padding: 2rem 2.5rem; border-bottom: 1px solid var(--overlay); position: sticky; top: 0; background: rgba(255,255,255,0.9); backdrop-filter: blur(12px); z-index: 10; }
-        .popup-header h3 { font-size: 1.35rem; color: var(--text); font-weight: 800; }
-        .popup-close { background: none; border: none; color: var(--text-muted); font-size: 2rem; cursor: pointer; transition: none !important; line-height: 1; margin-top: -4px; } .popup-close:hover { background: transparent !important; color: inherit !important; border: 1px solid transparent !important; transform: none !important; box-shadow: none !important; }
+        .popup-modal { background: var(--surface); border-radius: 12px; border: 1px solid var(--border); width: 800px; max-width: 95%; max-height: 85vh; overflow-y: auto; position: relative; margin: auto; margin-top: 5vh; animation: scaleUp 0.15s ease-out; }
+        .popup-header { display: flex; justify-content: space-between; align-items: center; padding: 2rem 2.5rem; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 10; }
+        .popup-header h3 { font-size: 1.35rem; color: #fff; font-weight: 800; }
+        .popup-close { background: none; border: none; color: var(--text-muted); font-size: 2rem; cursor: pointer; transition: color 0.2s ease; line-height: 1; margin-top: -4px; } .popup-close:hover { color: #fff; }
         .popup-body { padding: 2.5rem; }
         .popup-stat-row { display: flex; gap: 1.5rem; margin-bottom: 2rem; flex-wrap: wrap; }
-        .popup-stat { flex: 1; min-width: 120px; background: #f8fafc; border-radius: 16px; padding: 1.5rem; text-align: center; border: 1px solid var(--overlay); box-shadow: none !important; }
-        .popup-stat .big { font-size: 2rem; font-weight: 800; color: var(--primary); letter-spacing: -0.05em; } .popup-stat .small { font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; font-weight: 600; text-transform: none !important; letter-spacing: 0.05em; }
-        .subject-bar { display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: var(--surface); border-radius: 12px; margin-bottom: 10px; border: 1px solid var(--overlay); box-shadow: none !important; }
-        .subject-name { width: 140px; font-size: 0.95rem; font-weight: 700; color: var(--text); }
-        .bar-container { flex: 1; background: #e2e8f0; border-radius: 12px; height: 14px; overflow: hidden; }
-        .bar-fill { height: 100%; border-radius: 12px; transition: none !important; }
-        .action-item { padding: 12px 16px; background: #eef2ff; border-left: 4px solid var(--primary); border-radius: 8px; margin-bottom: 12px; font-size: 0.9rem; color: var(--primary); font-weight: 600; box-shadow: none !important; }
-        .popup-btn { padding: 12px 24px; border-radius: 10px; font-size: 0.9rem; font-weight: 700; cursor: pointer; border: none; transition: none !important; } .popup-btn:hover { background: transparent !important; color: inherit !important; border: 1px solid transparent !important; transform: none !important; box-shadow: none !important; }
-        .btn-email { background: var(--secondary); color: #fff; box-shadow: none !important; }
-        .btn-meeting { background: var(--primary); color: #fff; box-shadow: none !important; }
+        .popup-stat { flex: 1; min-width: 120px; background: #0a0a0a; border-radius: 8px; padding: 1.5rem; text-align: center; border: 1px solid var(--border); }
+        .popup-stat .big { font-size: 2rem; font-weight: 800; color: var(--primary); letter-spacing: -0.05em; } .popup-stat .small { font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; font-weight: 600; letter-spacing: 0.05em; }
+        .subject-bar { display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: #0a0a0a; border-radius: 8px; margin-bottom: 10px; border: 1px solid var(--border); }
+        .subject-name { width: 140px; font-size: 0.95rem; font-weight: 700; color: #fff; }
+        .bar-container { flex: 1; background: #1a1a1a; border-radius: 4px; height: 14px; overflow: hidden; }
+        .bar-fill { height: 100%; transition: width 0.5s ease-out; background: var(--primary); }
+        .action-item { padding: 12px 16px; background: #16102b; border-left: 4px solid var(--primary); border-radius: 4px; margin-bottom: 12px; font-size: 0.9rem; color: var(--primary); font-weight: 600; }
+        .popup-btn { padding: 12px 24px; border-radius: 6px; font-size: 0.9rem; font-weight: 700; cursor: pointer; border: none; transition: filter 0.2s ease; } .popup-btn:hover { filter: brightness(1.2); }
+        .btn-email { background: var(--secondary); color: #fff; }
+        .btn-meeting { background: var(--primary); color: #fff; }
         
-        .email-compose { display: none; margin-top: 1.5rem; padding: 2rem; background: #f8fafc; border-radius: 16px; border: 1px solid var(--overlay); animation: fadeIn 0.4s ease; box-shadow: none !important; }
-        .email-compose.active { background: rgba(0,0,0,0.2) !important; color: inherit; border: 1px solid rgba(255,255,255,0.1); transform: none !important; box-shadow: none !important; }
-        .email-compose textarea { width: 100%; height: 120px; background: var(--surface); color: var(--text); border: 2px solid var(--overlay); border-radius: 10px; padding: 16px; font-size: 0.95rem; resize: vertical; outline: none; margin-bottom: 16px; font-weight: 500; transition: none !important; }
-        .email-compose textarea:focus { border-color: var(--secondary); box-shadow: none !important; }
+        .email-compose { display: none; margin-top: 1.5rem; padding: 2rem; background: #0a0a0a; border-radius: 8px; border: 1px solid var(--border); animation: fadeIn 0.2s ease; }
+        .email-compose.active { display: block; }
+        .email-compose textarea { width: 100%; height: 120px; background: #000; color: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 16px; font-size: 0.95rem; resize: vertical; outline: none; margin-bottom: 16px; font-weight: 500; transition: border 0.2s ease; }
+        .email-compose textarea:focus { border-color: var(--primary); }
         
-        .alert { padding: 1.25rem 1.5rem; border-radius: 12px; margin-bottom: 2rem; font-weight: 700; background: #ecfdf5; border: 1px solid #10b981; color: var(--green); box-shadow: none !important; display: flex; align-items: center; gap: 12px; }
-    </style>
+        .alert { padding: 1.25rem 1.5rem; border-radius: 8px; margin-bottom: 2rem; font-weight: 700; background: #0a3d1b; border: 1px solid #10b981; color: var(--green); display: flex; align-items: center; gap: 12px; }
+
+        /* Mint Light Mode */
+        html.light-mode body {
+            --bg: #f0fdf4;
+            --surface: #ffffff;
+            --border: rgba(0, 0, 0, 0.05);
+            --text: #1f2937;
+            --text-muted: #4b5563;
+            --primary: #86efac;
+            --secondary: #dcfce7;
+            --red: #f87171;
+            --yellow: #fbbf24;
+        }
+        html.light-mode .card, html.light-mode .sidebar, html.light-mode .popup-content, html.light-mode table, html.light-mode .summary-card {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02), 0 1px 3px rgba(0,0,0,0.01) !important;
+            border: 1px solid var(--border) !important;
+        }
+        html.light-mode .nav-item:hover, html.light-mode .mentor-row:hover, html.light-mode .card:hover { background-color: #dcfce7 !important; transition: background 0.2s ease; }
+        html.light-mode .btn-submit, html.light-mode .nav-item.active { background: #86efac !important; color: #1f2937 !important; border: none !important; box-shadow: 0 2px 6px rgba(134, 239, 172, 0.3) !important; font-weight: 600; }
+        html.light-mode .popup-btn { background: #ffffff !important; border: 1px solid rgba(0,0,0,0.05) !important; color: #1f2937 !important; box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important; }
+        html.light-mode .popup-btn:hover { background: #dcfce7 !important; }
+        html.light-mode [tabindex="0"][style*="background-color: #121212"] { background-color: #ffffff !important; color: #1f2937 !important; box-shadow: 0 1px 4px rgba(0,0,0,0.03) !important; }
+        html.light-mode .email-compose textarea { background: #f0fdf4 !important; color: #1f2937 !important; border-color: rgba(0,0,0,0.05) !important; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); }
+        html.light-mode .alert { background: #dcfce7 !important; border-color: #86efac !important; color: #166534 !important; }
+        html.light-mode .popup-body div[style*="#121212"] { background: #ffffff !important; color: #1f2937 !important; border-color: rgba(0,0,0,0.05) !important; box-shadow: 0 2px 8px rgba(0,0,0,0.03) !important; }
+        html.light-mode input[type="text"][placeholder*="Schedule"] { color: #1f2937 !important; }
+        
+        /* Light Mode Student Cards Override */
+        html.light-mode .student-row { background: #ffffff !important; border: 1px solid rgba(0,0,0,0.05) !important; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.03) !important; transition: transform 0.2s ease, box-shadow 0.2s ease; margin-bottom: 12px; }
+        html.light-mode .student-row:nth-child(even) { background: #fafafa !important; }
+        html.light-mode .student-row:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.04) !important; border-color: rgba(0,0,0,0.08) !important; background: #ffffff !important; }
+        html.light-mode .student-name { color: #1f2937 !important; font-weight: 700; }
+        html.light-mode .student-id { color: #6b7280 !important; }
+        html.light-mode .radio-group label { background: #ffffff !important; border: 1px solid rgba(0,0,0,0.1) !important; color: #4b5563 !important; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s ease; }
+        html.light-mode .radio-group input[type="radio"]:checked+label.p-label { background: #bbf7d0 !important; color: #166534 !important; border-color: #4ade80 !important; }
+        html.light-mode .radio-group input[type="radio"]:checked+label.a-label { background: transparent !important; color: #b91c1c !important; border-color: #f87171 !important; }
+            </style>
+
+    <script>
+        const THEME_KEY = 'lumina_theme';
+        if (localStorage.getItem(THEME_KEY) === 'light') {
+            document.documentElement.classList.add('light-mode');
+        }
+        function toggleTheme() {
+            document.documentElement.classList.toggle('light-mode');
+            const isLight = document.documentElement.classList.contains('light-mode');
+            localStorage.setItem(THEME_KEY, isLight ? 'light' : 'dark');
+            document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+                btn.innerText = isLight ? '☀️' : '🌙';
+            });
+        }
+        window.addEventListener('DOMContentLoaded', () => {
+            const isLight = document.documentElement.classList.contains('light-mode');
+            document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+                btn.innerText = isLight ? '☀️' : '🌙';
+            });
+        });
+    </script>
+
 </head>
 <body>
 
@@ -154,8 +228,11 @@
         <!-- NAVBAR -->
         <div class="navbar">
             <div style="font-weight: 600; color: var(--text-muted);">Faculty Control Center</div>
-            <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--surface); border: 1px solid var(--overlay); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-muted);">
-                🔔
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <button onclick="toggleTheme()" class="theme-toggle-btn" style="background:transparent; border:none; font-size:1.2rem; cursor:pointer; outline:none; transition: transform 0.3s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">🌙</button>
+                <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-muted);">
+                    🔔
+                </div>
             </div>
         </div>
 
@@ -175,7 +252,7 @@
                         <h2 style="color: var(--primary); font-weight: 700;">{{ subject if subject else 'Not Assigned' }}</h2>
                     </div>
                     
-                    <div style="background: var(--surface); border: 1px solid var(--overlay); border-radius: 30px; padding: 6px 16px; display: flex; align-items: center; gap: 10px;">
+                    <div style="background: #000; border: 1px solid var(--border); border-radius: 20px; padding: 6px 16px; display: flex; align-items: center; gap: 10px;">
                         <span style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">📅 Date:</span>
                         <input type="date" id="global-date-picker" style="background: transparent; color: var(--text); border: none; outline: none; font-size: 0.9rem; cursor: pointer; font-family: 'Inter', sans-serif;">
                     </div>
@@ -195,19 +272,19 @@
                     <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: none !important; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 12px;">Your Weekly Schedule</div>
                     <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;">
                         {% for day in days_order %}
-                        <div style="background: var(--surface); border: 1px solid var(--overlay); border-radius: 12px; overflow: hidden;">
-                            <div style="background: #f8fafc; padding: 8px; text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); border-bottom: 1px solid var(--overlay); text-transform: none !important;">{{ day[:3] }}</div>
+                        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
+                            <div style="background: #1a1a1a; padding: 8px; text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); border-bottom: 1px solid var(--border); text-transform: uppercase;">{{ day[:3] }}</div>
                             <div style="padding: 10px; min-height: 70px; display: flex; flex-direction: column; gap: 8px;">
                                 {% if day_schedule[day] %}
                                     {% for entry in day_schedule[day] %}
-                                    <div style="background: var(--bg-elevated); border: 1px solid var(--overlay); border-radius: 8px; padding: 8px; position: relative;">
+                                    <div style="background: #0a0a0a; border: 1px solid var(--border); border-radius: 6px; padding: 8px; position: relative; transition: filter 0.2s ease; cursor: pointer;" onmouseover="this.style.filter='brightness(1.5)'" onmouseout="this.style.filter='none'">
                                         <div style="position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; background: var(--primary); border-radius: 0 4px 4px 0;"></div>
-                                        <div style="font-size: 0.75rem; font-weight: 700; color: var(--text); padding-left: 6px;">Sec {{ entry.section }}</div>
+                                        <div style="font-size: 0.75rem; font-weight: 700; color: #fff; padding-left: 6px;">Sec {{ entry.section }}</div>
                                         <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; padding-left: 6px;">{{ entry.time_slot }}</div>
                                     </div>
                                     {% endfor %}
                                 {% else %}
-                                    <div style="text-align: center; color: var(--overlay); font-size: 0.75rem; margin-top: 10px;">Free</div>
+                                    <div style="text-align: center; color: var(--text-muted); font-size: 0.75rem; margin-top: 10px;">Free</div>
                                 {% endif %}
                             </div>
                         </div>
@@ -215,7 +292,7 @@
                     </div>
                 </div>
                 {% else %}
-                <div style="background: var(--surface); border: 1px dashed var(--overlay); border-radius: 12px; padding: 2rem; text-align: center; margin-bottom: 2.5rem; color: var(--text-muted);">
+                <div style="background: var(--surface); border: 1px dashed var(--border); border-radius: 8px; padding: 2rem; text-align: center; margin-bottom: 2.5rem; color: var(--text-muted);">
                     ⚠️ No timetable generated yet. Request admin to initialize schedule.
                 </div>
                 {% endif %}
@@ -334,7 +411,7 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <div style="background: #f8fafc; padding: 6px 10px; border-radius: 6px; font-size: 0.75rem; color: var(--text-muted); border-left: 2px solid {% if s.Risk_Level == 'High Risk' %}var(--red){% elif s.Risk_Level == 'Watchlist' %}var(--yellow){% else %}var(--green){% endif %};">
+                                    <div tabindex="0" style="background-color: #121212 !important; color: #e5e7eb !important; border: 1px solid rgba(255,255,255,0.1); border-left: 3px solid {% if s.Risk_Level == 'High Risk' %}var(--red){% elif s.Risk_Level == 'Watchlist' %}var(--yellow){% else %}var(--green){% endif %}; padding: 6px 10px; border-radius: 6px; font-size: 0.75rem; appearance: none; outline: none; transition: box-shadow 0.2s ease, border-color 0.2s ease;" onfocus="this.style.boxShadow='0 0 0 2px rgba(59, 130, 246, 0.5)'; this.style.borderColor='#3b82f6';" onblur="this.style.boxShadow='none'; this.style.borderColor='rgba(255,255,255,0.1)';">
                                         {{ s.Action[:30] ~ '...' if s.Action|length > 30 else s.Action }}
                                     </div>
                                 </td>
@@ -618,8 +695,12 @@
 
             html += `
                 <div style="display:flex; gap:10px; margin-top:2rem;">
-                    <button class="popup-btn btn-email" onclick="document.getElementById('email-compose-area').classList.toggle('active')">Send Report via Email</button>
-                    <button class="popup-btn btn-meeting" onclick="alert('Meeting logged on Outlook calendar.')">Assign Consultation</button>
+                    <button class="popup-btn btn-email" style="white-space:nowrap;" onclick="document.getElementById('email-compose-area').classList.toggle('active')">Send Report via Email</button>
+                    <div style="display:flex; align-items:center; background:#121212; border:1px solid rgba(255,255,255,0.1); border-radius:6px; flex:1; transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;" onmouseover="this.style.background='#1f1f1f'" onmouseout="this.style.background='#121212'">
+                        <span style="padding-left:12px; color:#9ca3af; font-size:1.1rem; line-height:1;">📅</span>
+                        <input type="text" placeholder="Date/Time (e.g. Monday 2PM)" style="background:transparent; border:none; color:#e5e7eb; padding:10px 14px; font-size:0.9rem; width:100%; outline:none;" onfocus="this.parentElement.style.borderColor='var(--primary)'; this.parentElement.style.boxShadow='0 0 0 1px var(--primary)'" onblur="this.parentElement.style.borderColor='rgba(255,255,255,0.1)'; this.parentElement.style.boxShadow='none'">
+                        <button class="popup-btn btn-meeting" style="border-radius:0 6px 6px 0; padding:10px 20px; margin:0;" onclick="scheduleCounselling('${data.student_id}', this.previousElementSibling.value)">Schedule</button>
+                    </div>
                 </div>
                 <div class="email-compose" id="email-compose-area">
                     <textarea id="email-message" placeholder="Draft notice to student / parent..."></textarea>
@@ -627,6 +708,16 @@
                 </div>
             `;
             document.getElementById('popup-body').innerHTML = html;
+        }
+
+        function scheduleCounselling(sid, meetingTime) {
+            if(!meetingTime.trim()) return alert("Please enter a scheduling time first.");
+            fetch('/faculty/schedule_counselling', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ student_id: sid, meeting_time: meetingTime, message: "Counselling requested by Faculty." })
+            }).then(res => res.json()).then(data => {
+                alert(data.message);
+            });
         }
 
         function sendStudentEmail(sid, email) {
@@ -640,5 +731,52 @@
             });
         }
     </script>
+
+    <!-- Universal Floating Theme Toggle -->
+    <button onclick="toggleGlobalTheme()" id="global-theme-toggle" style="position: fixed; bottom: 25px; right: 25px; background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.15); color: #fff; width: 50px; height: 50px; border-radius: 50%; font-size: 1.5rem; cursor: pointer; display: flex; justify-content: center; align-items: center; z-index: 999999; box-shadow: 0 4px 16px rgba(0,0,0,0.4); backdrop-filter: blur(8px); transition: transform 0.2s ease, background 0.2s ease;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Toggle Light/Dark Theme">
+        <span id="global-theme-icon" style="line-height:1;margin-top:-2px;"></span>
+    </button>
+
+    <script>
+        function updateGlobalThemeIcon() {
+            var icon = document.getElementById('global-theme-icon');
+            var btn = document.getElementById('global-theme-toggle');
+            if (!icon) return;
+            if (document.documentElement.classList.contains('light-mode')) {
+                icon.innerText = '☀️';
+                btn.style.background = 'rgba(255,255,255,0.8)';
+                btn.style.border = '1px solid rgba(0,0,0,0.1)';
+                btn.style.color = '#1f2937';
+                btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+            } else {
+                icon.innerText = '🌙';
+                btn.style.background = 'rgba(0,0,0,0.7)';
+                btn.style.border = '1px solid rgba(255,255,255,0.15)';
+                btn.style.color = '#fff';
+                btn.style.boxShadow = '0 4px 16px rgba(0,0,0,0.4)';
+            }
+        }
+
+        function toggleGlobalTheme() {
+            document.documentElement.classList.toggle('light-mode');
+            if (document.documentElement.classList.contains('light-mode')) {
+                localStorage.setItem('lumina_theme', 'light');
+            } else {
+                localStorage.setItem('lumina_theme', 'dark');
+            }
+            updateGlobalThemeIcon();
+        }
+
+        // Initialize icon immediately and wait for load
+        updateGlobalThemeIcon();
+        document.addEventListener('DOMContentLoaded', updateGlobalThemeIcon);
+        
+        // Remove duplicate old static togglers if any
+        setTimeout(() => {
+            const oldTogglers = document.querySelectorAll('.theme-toggle-btn');
+            oldTogglers.forEach(btn => btn.style.display = 'none');
+        }, 100);
+    </script>
+
 </body>
 </html>

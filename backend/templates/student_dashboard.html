@@ -1,6 +1,21 @@
 <!DOCTYPE html>
 <html class="dark" lang="en">
 <head>
+
+    <!-- Anti-FOUC Theme Check -->
+    <script>
+        (function() {
+            try {
+                var savedTheme = localStorage.getItem('lumina_theme');
+                if (savedTheme === 'light') {
+                    document.documentElement.classList.add('light-mode');
+                } else if (savedTheme === 'dark') {
+                    document.documentElement.classList.remove('light-mode');
+                }
+            } catch (e) {}
+        })();
+    </script>
+
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>Kinetic Lumina | Student Portal</title>
@@ -43,7 +58,50 @@
         ::-webkit-scrollbar-track { background: #131313; }
         ::-webkit-scrollbar-thumb { background: #353534; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #414755; }
-    </style>
+
+        /* Mint Light Mode */
+        html.light-mode body { background-color: #f0fdf4 !important; color: #1f2937 !important; }
+        html.light-mode header,
+        html.light-mode .bg-surface-container, 
+        html.light-mode .bg-surface-container-high, 
+        html.light-mode .bg-surface-container-lowest { background-color: #ffffff !important; border-color: rgba(0,0,0,0.05) !important; box-shadow: 0 4px 12px rgba(0,0,0,0.02), 0 1px 3px rgba(0,0,0,0.01) !important; }
+        html.light-mode header { box-shadow: 0 1px 3px rgba(0,0,0,0.02) !important; }
+        html.light-mode .text-on-surface-variant { color: #4b5563 !important; }
+        html.light-mode .text-white, html.light-mode .text-\[\#e5e2e1\] { color: #1f2937 !important; }
+        html.light-mode .bg-primary\/5 { background-color: rgba(134, 239, 172, 0.15) !important; }
+        html.light-mode .bg-primary\/5:hover { background-color: #dcfce7 !important; }
+        html.light-mode .text-primary { color: #16a34a !important; }
+        html.light-mode .text-secondary { color: #10b981 !important; }
+        html.light-mode .text-tertiary { color: #34d399 !important; }
+        html.light-mode th { background-color: #f0fdf4 !important; border-bottom: 1px solid rgba(0,0,0,0.05) !important; color: #4b5563 !important;}
+        html.light-mode tr:hover td, html.light-mode .group:hover { background-color: #dcfce7 !important; transition: background 0.2s ease; }
+        html.light-mode .bg-secondary\/10 { background-color: rgba(134, 239, 172, 0.2) !important; }
+        html.light-mode .bg-secondary\/10:hover { background-color: #86efac !important; color: #1f2937 !important; font-weight: 600;}
+        html.light-mode ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15) !important; }
+        html.light-mode ::-webkit-scrollbar-track { background: transparent !important; }
+            </style>
+
+    <script>
+        const THEME_KEY = 'lumina_theme';
+        if (localStorage.getItem(THEME_KEY) === 'light') {
+            document.documentElement.classList.add('light-mode');
+        }
+        function toggleTheme() {
+            document.documentElement.classList.toggle('light-mode');
+            const isLight = document.documentElement.classList.contains('light-mode');
+            localStorage.setItem(THEME_KEY, isLight ? 'light' : 'dark');
+            document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+                btn.innerText = isLight ? '☀️' : '🌙';
+            });
+        }
+        window.addEventListener('DOMContentLoaded', () => {
+            const isLight = document.documentElement.classList.contains('light-mode');
+            document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+                btn.innerText = isLight ? '☀️' : '🌙';
+            });
+        });
+    </script>
+
 </head>
 <body class="bg-background text-[#e5e2e1] font-body overflow-x-hidden">
 
@@ -59,6 +117,7 @@
             </div>
         </div>
         <div class="flex items-center gap-4">
+            <button onclick="toggleTheme()" class="theme-toggle-btn" style="background:transparent; border:none; font-size:1.2rem; cursor:pointer; outline:none; transition: transform 0.3s; margin-right: 10px;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">🌙</button>
             <span class="text-xs font-semibold px-4 py-2 bg-surface-container-high rounded-full">{{ student.name }}</span>
             <a href="{{ url_for('logout') }}" class="text-error hover:bg-error/10 px-4 py-2 rounded-full text-xs font-bold uppercase transition flex items-center gap-2">
                 <span class="material-symbols-outlined text-sm">logout</span> Logout
@@ -109,6 +168,50 @@
                 <canvas id="attendanceChart"></canvas>
             </div>
         </div>
+
+        <!-- Counselling Sessions Section -->
+        {% if counselling_sessions %}
+        <div class="bg-surface-container p-8 rounded-2xl border border-white/5 relative overflow-hidden group">
+            <div class="absolute -right-8 -top-8 w-32 h-32 bg-secondary/5 rounded-full blur-2xl group-hover:bg-secondary/10 transition-colors"></div>
+            
+            <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-secondary">groups</span>
+                    <h3 class="text-lg font-bold font-headline">Upcoming Counselling Sessions</h3>
+                </div>
+                <span class="px-3 py-1 bg-secondary/10 text-secondary text-[10px] font-bold uppercase rounded-full tracking-wider animate-pulse">Action Required</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {% for session in counselling_sessions %}
+                <div class="bg-surface-container-high p-5 rounded-xl border border-white/5 hover:border-secondary/30 transition-all hover:shadow-lg relative z-10">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary">
+                            <span class="material-symbols-outlined text-[20px]">event_available</span>
+                        </div>
+                        <div>
+                            <p class="text-xs text-on-surface-variant uppercase font-label">With Faculty</p>
+                            <p class="text-sm font-bold text-white uppercase">{{ session.faculty_id }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <div class="flex items-center gap-2 text-primary">
+                            <span class="material-symbols-outlined text-[16px]">schedule</span>
+                            <span class="text-sm font-bold">{{ session.meeting_time }}</span>
+                        </div>
+                        
+                        <div class="bg-surface-container-lowest/50 p-3 rounded-lg border border-white/5">
+                            <p class="text-xs text-on-surface-variant italic leading-relaxed">
+                                "{{ session.message or 'No message provided.' }}"
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Bottom Row: Timetable and Resources -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -278,5 +381,52 @@
             }
         });
     </script>
+
+    <!-- Universal Floating Theme Toggle -->
+    <button onclick="toggleGlobalTheme()" id="global-theme-toggle" style="position: fixed; bottom: 25px; right: 25px; background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.15); color: #fff; width: 50px; height: 50px; border-radius: 50%; font-size: 1.5rem; cursor: pointer; display: flex; justify-content: center; align-items: center; z-index: 999999; box-shadow: 0 4px 16px rgba(0,0,0,0.4); backdrop-filter: blur(8px); transition: transform 0.2s ease, background 0.2s ease;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Toggle Light/Dark Theme">
+        <span id="global-theme-icon" style="line-height:1;margin-top:-2px;"></span>
+    </button>
+
+    <script>
+        function updateGlobalThemeIcon() {
+            var icon = document.getElementById('global-theme-icon');
+            var btn = document.getElementById('global-theme-toggle');
+            if (!icon) return;
+            if (document.documentElement.classList.contains('light-mode')) {
+                icon.innerText = '☀️';
+                btn.style.background = 'rgba(255,255,255,0.8)';
+                btn.style.border = '1px solid rgba(0,0,0,0.1)';
+                btn.style.color = '#1f2937';
+                btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+            } else {
+                icon.innerText = '🌙';
+                btn.style.background = 'rgba(0,0,0,0.7)';
+                btn.style.border = '1px solid rgba(255,255,255,0.15)';
+                btn.style.color = '#fff';
+                btn.style.boxShadow = '0 4px 16px rgba(0,0,0,0.4)';
+            }
+        }
+
+        function toggleGlobalTheme() {
+            document.documentElement.classList.toggle('light-mode');
+            if (document.documentElement.classList.contains('light-mode')) {
+                localStorage.setItem('lumina_theme', 'light');
+            } else {
+                localStorage.setItem('lumina_theme', 'dark');
+            }
+            updateGlobalThemeIcon();
+        }
+
+        // Initialize icon immediately and wait for load
+        updateGlobalThemeIcon();
+        document.addEventListener('DOMContentLoaded', updateGlobalThemeIcon);
+        
+        // Remove duplicate old static togglers if any
+        setTimeout(() => {
+            const oldTogglers = document.querySelectorAll('.theme-toggle-btn');
+            oldTogglers.forEach(btn => btn.style.display = 'none');
+        }, 100);
+    </script>
+
 </body>
 </html>

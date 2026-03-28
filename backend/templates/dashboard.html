@@ -1,6 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
+    <!-- Anti-FOUC Theme Check -->
+    <script>
+        (function() {
+            try {
+                var savedTheme = localStorage.getItem('lumina_theme');
+                if (savedTheme === 'light') {
+                    document.documentElement.classList.add('light-mode');
+                } else if (savedTheme === 'dark') {
+                    document.documentElement.classList.remove('light-mode');
+                }
+            } catch (e) {}
+        })();
+    </script>
+
     <meta charset="UTF-8">
     <title>Admin Dashboard — Lumina Sentinel</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -111,7 +126,59 @@
         
         .empty-state { text-align: center; padding: 4rem 2rem; color: var(--text-muted); }
         .empty-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; }
-    </style>
+
+        /* Mint Light Mode */
+        html.light-mode body {
+            --bg: #f0fdf4; 
+            --surface: #ffffff; 
+            --overlay: rgba(0,0,0,0.05);
+            --text: #1f2937; 
+            --text-muted: #4b5563; 
+            --surface-hover: #dcfce7;
+            --teal: #10b981;
+            --lavender: #86efac;
+            --mauve: #34d399;
+            --red: #f87171;
+        }
+        html.light-mode .ctrl-card, html.light-mode .stat-card, html.light-mode .panel, html.light-mode .sidebar {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.02), 0 1px 3px rgba(0,0,0,0.01) !important;
+            border: 1px solid var(--overlay) !important;
+        }
+        html.light-mode .nav-item:hover, html.light-mode tr:hover { background-color: #dcfce7 !important; transition: background 0.2s ease; }
+        html.light-mode .nav-item.active { background: #86efac !important; color: #1f2937 !important; font-weight: 600; }
+        html.light-mode .btn { background: #ffffff !important; border: 1px solid rgba(0,0,0,0.05) !important; color: #1f2937 !important; box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important; transition: all 0.2s ease; }
+        html.light-mode .btn:hover { background: #dcfce7 !important; }
+        html.light-mode .btn-teal, html.light-mode .btn-lavender, html.light-mode .btn-mauve, html.light-mode .btn-red { border: none !important; color: #1f2937 !important; font-weight: 600; }
+        html.light-mode .btn-teal { background: #6ee7b7 !important; box-shadow: 0 2px 6px rgba(110,231,183,0.3) !important; }
+        html.light-mode .btn-lavender { background: #86efac !important; box-shadow: 0 2px 6px rgba(134,239,172,0.3) !important; }
+        html.light-mode .btn-mauve { background: #34d399 !important; box-shadow: 0 2px 6px rgba(52,211,153,0.3) !important; }
+        html.light-mode .btn-red { background: #f87171 !important; box-shadow: 0 2px 6px rgba(248,113,113,0.3) !important; color: #fff !important; }
+        html.light-mode td { background: transparent; }
+        html.light-mode th { background: #f0fdf4 !important; color: #4b5563 !important; border-bottom: 1px solid rgba(0,0,0,0.05) !important; }
+        html.light-mode input[type="file"], html.light-mode .dropdown { color: #1f2937 !important; border-color: rgba(0,0,0,0.1) !important; background: #ffffff !important; }
+            </style>
+
+    <script>
+        const THEME_KEY = 'lumina_theme';
+        if (localStorage.getItem(THEME_KEY) === 'light') {
+            document.documentElement.classList.add('light-mode');
+        }
+        function toggleTheme() {
+            document.documentElement.classList.toggle('light-mode');
+            const isLight = document.documentElement.classList.contains('light-mode');
+            localStorage.setItem(THEME_KEY, isLight ? 'light' : 'dark');
+            document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+                btn.innerText = isLight ? '☀️' : '🌙';
+            });
+        }
+        window.addEventListener('DOMContentLoaded', () => {
+            const isLight = document.documentElement.classList.contains('light-mode');
+            document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+                btn.innerText = isLight ? '☀️' : '🌙';
+            });
+        });
+    </script>
+
 </head>
 <body>
 
@@ -151,6 +218,7 @@
         <div class="navbar">
             <div style="font-weight: 600; color: var(--text-muted);">Admin Control Center</div>
             <div class="nav-actions">
+                <button onclick="toggleTheme()" class="theme-toggle-btn" style="background:transparent; border:none; font-size:1.2rem; cursor:pointer; outline:none; transition: transform 0.3s; margin-right: 10px;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">🌙</button>
                 <select id="sectionFilter" class="dropdown" onchange="window.location.href='?section=' + this.value">
                     <option value="All" {% if not selected_section %}selected{% endif %}>All Sections</option>
                     {% for sec in sections %}
@@ -349,5 +417,52 @@
             document.querySelector('.metric-' + id).classList.add('active');
         }
     </script>
+
+    <!-- Universal Floating Theme Toggle -->
+    <button onclick="toggleGlobalTheme()" id="global-theme-toggle" style="position: fixed; bottom: 25px; right: 25px; background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.15); color: #fff; width: 50px; height: 50px; border-radius: 50%; font-size: 1.5rem; cursor: pointer; display: flex; justify-content: center; align-items: center; z-index: 999999; box-shadow: 0 4px 16px rgba(0,0,0,0.4); backdrop-filter: blur(8px); transition: transform 0.2s ease, background 0.2s ease;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Toggle Light/Dark Theme">
+        <span id="global-theme-icon" style="line-height:1;margin-top:-2px;"></span>
+    </button>
+
+    <script>
+        function updateGlobalThemeIcon() {
+            var icon = document.getElementById('global-theme-icon');
+            var btn = document.getElementById('global-theme-toggle');
+            if (!icon) return;
+            if (document.documentElement.classList.contains('light-mode')) {
+                icon.innerText = '☀️';
+                btn.style.background = 'rgba(255,255,255,0.8)';
+                btn.style.border = '1px solid rgba(0,0,0,0.1)';
+                btn.style.color = '#1f2937';
+                btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+            } else {
+                icon.innerText = '🌙';
+                btn.style.background = 'rgba(0,0,0,0.7)';
+                btn.style.border = '1px solid rgba(255,255,255,0.15)';
+                btn.style.color = '#fff';
+                btn.style.boxShadow = '0 4px 16px rgba(0,0,0,0.4)';
+            }
+        }
+
+        function toggleGlobalTheme() {
+            document.documentElement.classList.toggle('light-mode');
+            if (document.documentElement.classList.contains('light-mode')) {
+                localStorage.setItem('lumina_theme', 'light');
+            } else {
+                localStorage.setItem('lumina_theme', 'dark');
+            }
+            updateGlobalThemeIcon();
+        }
+
+        // Initialize icon immediately and wait for load
+        updateGlobalThemeIcon();
+        document.addEventListener('DOMContentLoaded', updateGlobalThemeIcon);
+        
+        // Remove duplicate old static togglers if any
+        setTimeout(() => {
+            const oldTogglers = document.querySelectorAll('.theme-toggle-btn');
+            oldTogglers.forEach(btn => btn.style.display = 'none');
+        }, 100);
+    </script>
+
 </body>
 </html>

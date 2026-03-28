@@ -1,6 +1,21 @@
 <!DOCTYPE html>
 <html>
 <head>
+
+    <!-- Anti-FOUC Theme Check -->
+    <script>
+        (function() {
+            try {
+                var savedTheme = localStorage.getItem('lumina_theme');
+                if (savedTheme === 'light') {
+                    document.documentElement.classList.add('light-mode');
+                } else if (savedTheme === 'dark') {
+                    document.documentElement.classList.remove('light-mode');
+                }
+            } catch (e) {}
+        })();
+    </script>
+
 <title>Student Attendance Trend</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -34,6 +49,53 @@ new Chart(ctx, {
     }
 });
 </script>
+
+
+    <!-- Universal Floating Theme Toggle -->
+    <button onclick="toggleGlobalTheme()" id="global-theme-toggle" style="position: fixed; bottom: 25px; right: 25px; background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.15); color: #fff; width: 50px; height: 50px; border-radius: 50%; font-size: 1.5rem; cursor: pointer; display: flex; justify-content: center; align-items: center; z-index: 999999; box-shadow: 0 4px 16px rgba(0,0,0,0.4); backdrop-filter: blur(8px); transition: transform 0.2s ease, background 0.2s ease;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Toggle Light/Dark Theme">
+        <span id="global-theme-icon" style="line-height:1;margin-top:-2px;"></span>
+    </button>
+
+    <script>
+        function updateGlobalThemeIcon() {
+            var icon = document.getElementById('global-theme-icon');
+            var btn = document.getElementById('global-theme-toggle');
+            if (!icon) return;
+            if (document.documentElement.classList.contains('light-mode')) {
+                icon.innerText = '☀️';
+                btn.style.background = 'rgba(255,255,255,0.8)';
+                btn.style.border = '1px solid rgba(0,0,0,0.1)';
+                btn.style.color = '#1f2937';
+                btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+            } else {
+                icon.innerText = '🌙';
+                btn.style.background = 'rgba(0,0,0,0.7)';
+                btn.style.border = '1px solid rgba(255,255,255,0.15)';
+                btn.style.color = '#fff';
+                btn.style.boxShadow = '0 4px 16px rgba(0,0,0,0.4)';
+            }
+        }
+
+        function toggleGlobalTheme() {
+            document.documentElement.classList.toggle('light-mode');
+            if (document.documentElement.classList.contains('light-mode')) {
+                localStorage.setItem('lumina_theme', 'light');
+            } else {
+                localStorage.setItem('lumina_theme', 'dark');
+            }
+            updateGlobalThemeIcon();
+        }
+
+        // Initialize icon immediately and wait for load
+        updateGlobalThemeIcon();
+        document.addEventListener('DOMContentLoaded', updateGlobalThemeIcon);
+        
+        // Remove duplicate old static togglers if any
+        setTimeout(() => {
+            const oldTogglers = document.querySelectorAll('.theme-toggle-btn');
+            oldTogglers.forEach(btn => btn.style.display = 'none');
+        }, 100);
+    </script>
 
 </body>
 </html>
