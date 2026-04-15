@@ -1,0 +1,144 @@
+sqlite_sequence:
+CREATE TABLE sqlite_sequence(name,seq)
+
+attendance:
+CREATE TABLE "attendance" (
+"StudentID" TEXT,
+  "Student_Name" TEXT,
+  "Section" TEXT,
+  "Subject" TEXT,
+  "Gender" TEXT,
+  "Hostler" TEXT,
+  "Date" TEXT,
+  "Semester" INTEGER,
+  "Present" INTEGER,
+  "Rolling_Attendance" REAL,
+  "Rolling_Attendance_Prev" REAL,
+  "Attendance_Trend" REAL,
+  "Absence_Streak" INTEGER,
+  "Semester_Attendance" REAL,
+  "MentorID" TEXT,
+  "Parent_Contact" INTEGER,
+  "Mentor_Contact" INTEGER,
+  "Anomaly" INTEGER,
+  "Parent_Notified" INTEGER,
+  "Mentor_Nudged" INTEGER
+, Time_Slot TEXT)
+
+users:
+CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        role TEXT NOT NULL,
+        email TEXT,
+        full_name TEXT
+    )
+
+faculty_classes:
+CREATE TABLE faculty_classes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        faculty_username TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        section TEXT NOT NULL,
+        time_slot TEXT NOT NULL
+    )
+
+otp_requests:
+CREATE TABLE otp_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL,
+        otp_code TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        used INTEGER DEFAULT 0
+    )
+
+login_otps:
+CREATE TABLE login_otps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL,
+        otp_code TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        used INTEGER DEFAULT 0
+    )
+
+smtp_config:
+CREATE TABLE smtp_config (
+        id INTEGER PRIMARY KEY,
+        smtp_host TEXT,
+        smtp_port INTEGER DEFAULT 587,
+        smtp_user TEXT,
+        smtp_pass TEXT
+    )
+
+admin_files:
+CREATE TABLE admin_files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    filename TEXT NOT NULL,
+    filepath TEXT NOT NULL,
+    class_name TEXT,
+    section TEXT,
+    upload_date TEXT NOT NULL
+)
+
+students:
+CREATE TABLE students (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    registration_no TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    course TEXT DEFAULT 'B.Tech',
+    class_name TEXT NOT NULL,
+    section TEXT NOT NULL,
+    mentor_name TEXT,
+    student_email TEXT,
+    parent_email TEXT,
+    enrolled_subjects TEXT
+, hostler TEXT DEFAULT 'No')
+
+student_timetable:
+CREATE TABLE student_timetable (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    registration_no TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    teacher TEXT NOT NULL,
+    day_of_week TEXT NOT NULL,
+    time_slot TEXT NOT NULL,
+    FOREIGN KEY(registration_no) REFERENCES students(registration_no)
+)
+
+master_timetable:
+CREATE TABLE master_timetable (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    subject TEXT NOT NULL,
+    teacher TEXT NOT NULL,
+    day_of_week TEXT NOT NULL,
+    time_slot TEXT NOT NULL,
+    class_name TEXT NOT NULL,
+    section TEXT NOT NULL
+)
+
+subject_credits:
+CREATE TABLE subject_credits (subject TEXT PRIMARY KEY, credits INTEGER)
+
+counselling_sessions:
+CREATE TABLE counselling_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id TEXT NOT NULL,
+        faculty_id TEXT NOT NULL,
+        meeting_time TEXT NOT NULL,
+        message TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        status TEXT DEFAULT 'Scheduled'
+    )
+
+attendance_enquiry:
+CREATE TABLE attendance_enquiry (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id TEXT NOT NULL,
+        mentor_id TEXT NOT NULL,
+        triggered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        reason TEXT DEFAULT NULL,
+        responded_at DATETIME DEFAULT NULL,
+        is_read BOOLEAN DEFAULT 0
+    )

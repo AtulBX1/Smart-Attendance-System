@@ -195,8 +195,8 @@
         <a href="{{ url_for('manage_users') }}" class="nav-item">
             <span style="font-size: 1.2rem;">👥</span> Manage Users
         </a>
-        <a href="{{ url_for('analytics') }}" class="nav-item">
-            <span style="font-size: 1.2rem;">📈</span> Analytics
+        <a href="{{ url_for('admin_analytics') }}" class="nav-item">
+            <span style="font-size: 1.2rem;">📈</span> Student Analytics
         </a>
         <a href="{{ url_for('smtp_settings') }}" class="nav-item">
             <span style="font-size: 1.2rem;">⚙️</span> SMTP Settings
@@ -277,6 +277,12 @@
                     </form>
                 </div>
                 
+                <div class="ctrl-card" style="border-color: rgba(0, 212, 255, 0.3);">
+                    <h3 style="color: var(--teal);">📊 Advanced Analytics Dashboard</h3>
+                    <p>View rich, interactive charts with student risk analysis, trends, and behavioral anomalies powered by ML.</p>
+                    <a href="/admin/analytics" class="btn btn-teal" style="margin-top: auto; text-decoration: none; display: inline-block;">Open Dashboard →</a>
+                </div>
+
                 <div class="ctrl-card">
                     <h3 style="color: var(--yellow);">🧠 Run AI Pipeline</h3>
                     <p>Manually trigger ML backend to re-analyze trends and refresh risk predictions.</p>

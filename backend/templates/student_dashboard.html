@@ -79,7 +79,70 @@
         html.light-mode .bg-secondary\/10:hover { background-color: #86efac !important; color: #1f2937 !important; font-weight: 600;}
         html.light-mode ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15) !important; }
         html.light-mode ::-webkit-scrollbar-track { background: transparent !important; }
-            </style>
+
+        /* Attendance Enquiry Modal Styles */
+        #enquiry-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(4px);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #enquiry-card {
+            background: #1e1e2e;
+            border: 1px solid #f38ba8;
+            border-radius: 12px;
+            padding: 32px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            pointer-events: auto;
+        }
+
+        .blocking-active {
+            pointer-events: none !important;
+            user-select: none !important;
+            overflow: hidden !important;
+        }
+
+        #enquiry-reason {
+            background: #313244;
+            border: 1px solid #45475a;
+            color: #cdd6f4;
+            border-radius: 8px;
+            width: 100%;
+            padding: 12px;
+            font-size: 0.95rem;
+            outline: none;
+            resize: vertical;
+        }
+
+        #enquiry-reason:focus {
+            border-color: #f38ba8;
+            box-shadow: 0 0 0 1px #f38ba8;
+        }
+
+        #enquiry-submit {
+            background: #a6e3a1;
+            color: #1a3a2a;
+            font-weight: 600;
+            border-radius: 8px;
+            width: 100%;
+            padding: 12px;
+            margin-top: 16px;
+            cursor: pointer;
+            transition: opacity 0.2s ease;
+        }
+
+        #enquiry-submit:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
 
     <script>
         const THEME_KEY = 'lumina_theme';
@@ -428,5 +491,88 @@
         }, 100);
     </script>
 
+    <!-- Attendance Enquiry Modal -->
+    <div id="enquiry-overlay">
+        <div id="enquiry-card">
+            <h2 style="color: #f38ba8; font-size: 20px; font-weight: 700; margin-bottom: 8px;">Attendance Enquiry</h2>
+            <p style="color: #cdd6f4; font-size: 14px; margin-bottom: 24px;">Your attendance has dropped below the required threshold. Please provide a reason to continue.</p>
+            
+            <input type="hidden" id="enquiry-id-val">
+            <textarea id="enquiry-reason" rows="4" placeholder="Type your reason here..." oninput="validateEnquiryReason()"></textarea>
+            
+            <div id="char-count" style="color: #6c7086; font-size: 11px; margin-top: 6px; text-align: right;">0 / 20 characters minimum</div>
+            
+            <button id="enquiry-submit" disabled onclick="submitEnquiryReason()">Submit Reason</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            checkPendingEnquiry();
+        });
+
+        function checkPendingEnquiry() {
+            fetch('/student/check_enquiry')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.pending) {
+                        showEnquiryModal(data.enquiry_id);
+                    }
+                })
+                .catch(err => console.error("Error checking enquiry:", err));
+        }
+
+        function showEnquiryModal(id) {
+            document.getElementById('enquiry-id-val').value = id;
+            document.getElementById('enquiry-overlay').style.display = 'flex';
+            document.body.classList.add('blocking-active');
+        }
+
+        function validateEnquiryReason() {
+            const reason = document.getElementById('enquiry-reason').value.trim();
+            const btn = document.getElementById('enquiry-submit');
+            const counter = document.getElementById('char-count');
+            
+            counter.innerText = `${reason.length} / 20 characters minimum`;
+            
+            if (reason.length >= 20) {
+                btn.disabled = false;
+                counter.style.color = '#a6e3a1';
+            } else {
+                btn.disabled = true;
+                counter.style.color = '#6c7086';
+            }
+        }
+
+        function submitEnquiryReason() {
+            const id = document.getElementById('enquiry-id-val').value;
+            const reason = document.getElementById('enquiry-reason').value.trim();
+            
+            document.getElementById('enquiry-submit').disabled = true;
+            document.getElementById('enquiry-submit').innerText = "Submitting...";
+
+            fetch('/student/submit_enquiry_reason', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enquiry_id: id, reason: reason })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    document.getElementById('enquiry-overlay').style.display = 'none';
+                    document.body.classList.remove('blocking-active');
+                } else {
+                    alert("Error submitting reason. Please try again.");
+                    document.getElementById('enquiry-submit').disabled = false;
+                    document.getElementById('enquiry-submit').innerText = "Submit Reason";
+                }
+            })
+            .catch(err => {
+                console.error("Submission error:", err);
+                document.getElementById('enquiry-submit').disabled = false;
+                document.getElementById('enquiry-submit').innerText = "Submit Reason";
+            });
+        }
+    </script>
 </body>
 </html>

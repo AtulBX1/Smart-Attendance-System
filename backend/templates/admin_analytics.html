@@ -1,0 +1,2032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Analytics | Elite Dashboard</title>
+  
+  <!-- Fonts: Space Grotesk for headings/UI, JetBrains Mono for data/code -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* =============================================
+       1. ELITE TOKENS & RESET
+    ============================================= */
+    :root {
+      /* Deep Dark Base */
+      --base:       #0a0e27;
+      --mantle:     #0f1428;
+      --crust:      #050810;
+      --surface0:   #1a1f3a;
+      --surface1:   #25355c;
+      --surface2:   #2d4073;
+      
+      --text:       #ffffff;
+      --subtext:    #b0b9d0;
+      --subtext1:   #c9d1e8;
+      
+      /* Vibrant Neon Accents */
+      --red:        #ff4757;
+      --peach:      #ff8359;
+      --yellow:     #ffd93d;
+      --blue:       #00d4ff;
+      --green:      #0bff88;
+      --mauve:      #da70d6;
+      
+      /* Glows with increased intensity */
+      --glow-red:    rgba(255,71,87,0.40);
+      --glow-peach:  rgba(255,131,89,0.40);
+      --glow-yellow: rgba(255,217,61,0.40);
+      --glow-blue:   rgba(0,212,255,0.40);
+      --glow-green:  rgba(11,255,136,0.40);
+      --glow-mauve:  rgba(218,112,214,0.40);
+
+      --ease-elastic: cubic-bezier(0.34, 1.56, 0.64, 1);
+      --ease-smooth:  cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background-color: var(--base);
+      background-image: radial-gradient(circle at 15% 50%, rgba(203, 166, 247, 0.04), transparent 30%), 
+                        radial-gradient(circle at 85% 30%, rgba(137, 180, 250, 0.04), transparent 30%);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      scroll-behavior: smooth;
+    }
+
+    .mono { font-family: 'JetBrains Mono', monospace; font-feature-settings: 'tnum'; }
+
+    ::selection { background: var(--surface2); color: var(--text); }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--surface0); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--surface1); }
+
+    /* =============================================
+       2. STICKY NAV & HEADER (GLASSMORPHISM)
+    ============================================= */
+    .glass-nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      background: rgba(24, 24, 37, 0.65);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      padding: 1rem 2.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      transition: all 0.3s ease;
+    }
+
+    .nav-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      color: var(--subtext);
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s var(--ease-smooth);
+    }
+    .nav-back:hover { 
+      background: rgba(255,255,255,0.08); 
+      color: var(--text); 
+      transform: translateX(-2px); 
+    }
+
+    .nav-dots { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+    
+    .nav-dot-wrap { position: relative; }
+    .nav-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(176, 185, 208, 0.6);
+      border: none;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.3s ease;
+    }
+    .nav-dot::after {
+      content: ''; position: absolute; inset: -6px; border-radius: 50%;
+      border: 1px solid var(--dc); opacity: 0; transition: all 0.3s;
+    }
+    .nav-dot:hover { opacity: 1; transform: scale(1.4); background: rgba(176, 185, 208, 0.9); }
+    .nav-dot.active { 
+      background: #00d4ff;
+      box-shadow: 0 0 8px #00d4ff;
+      transform: scale(1.3);
+      opacity: 1;
+    }
+    .nav-dot.active::after { opacity: 0; }
+
+    /* Nav Tooltip */
+    .nav-tip {
+      position: absolute;
+      top: 100%; left: 50%;
+      transform: translate(-50%, 10px) scale(0.95);
+      background: var(--crust);
+      border: 1px solid var(--surface0);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.2s var(--ease-smooth);
+      z-index: 10;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    .nav-dot-wrap:hover .nav-tip { opacity: 1; transform: translate(-50%, 15px) scale(1); }
+
+    .header-hero {
+      padding: 2.5rem 2.5rem;
+      max-width: 100%;
+      margin: 1.5rem 0 2rem 0;
+      background: linear-gradient(135deg, rgba(0,212,255,0.12) 0%, rgba(11,255,136,0.12) 100%);
+      border-bottom: 2px solid rgba(0,212,255,0.4);
+      border-radius: 12px;
+      backdrop-filter: blur(12px);
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      position: relative;
+      z-index: 2;
+    }
+    .hero-title {
+      font-size: 2.4rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 1rem;
+      display: block;
+      color: var(--text);
+      text-shadow: 0 0 20px rgba(0,212,255,0.4);
+    }
+    .hero-title .badge {
+      font-size: 0.75rem; 
+      font-weight: 700; 
+      letter-spacing: 1.2px; 
+      text-transform: uppercase;
+      background: linear-gradient(135deg, rgba(218,112,214,0.35), rgba(0,212,255,0.35));
+      color: #ffffff;
+      padding: 8px 14px; 
+      border-radius: 20px; 
+      border: 1.5px solid rgba(0,212,255,0.6);
+      vertical-align: middle;
+      box-shadow: 0 0 16px rgba(218,112,214,0.3), 0 0 8px rgba(0,212,255,0.3);
+      display: inline-block;
+      margin-left: 10px;
+    }
+    .hero-subtitle { 
+      color: #ffffff;
+      font-size: 1rem;
+      line-height: 1.7;
+      max-width: 900px;
+      opacity: 1;
+      font-weight: 400;
+      display: block;
+    }
+
+    /* =============================================
+       3. PREMIUM CARDS & LAYOUT
+    ============================================= */
+    .dashboard-grid {
+      padding: 1rem 2.5rem 4rem;
+      max-width: 1400px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 2rem;
+    }
+
+    .saas-card {
+      background: linear-gradient(145deg, rgba(30, 30, 46, 0.4) 0%, rgba(24, 24, 37, 0.8) 100%);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 20px;
+      padding: 2rem;
+      position: relative;
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(30px);
+      transition: all 0.5s var(--ease-smooth);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+
+    .saas-card.visible { opacity: 1; transform: translateY(0); }
+    .saas-card:hover { 
+      border-color: rgba(255,255,255,0.12);
+      box-shadow: 0 20px 48px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+      transform: translateY(-2px);
+    }
+    
+    /* Background subtle ambient glow based on category */
+    .saas-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 150px;
+      background: radial-gradient(ellipse at top left, var(--cc) 0%, transparent 70%);
+      opacity: 0.06; pointer-events: none; transition: opacity 0.3s;
+    }
+    .saas-card:hover::before { opacity: 0.12; }
+
+    /* Card Header */
+    .card-head {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 1.5rem; position: relative; z-index: 2;
+    }
+    .card-title-wrap { display: flex; align-items: center; gap: 12px; }
+    .cat-indicator {
+      width: 14px; height: 14px; border-radius: 4px;
+      background: var(--cc); box-shadow: 0 0 12px var(--cc);
+    }
+    .card-title { font-size: 1.1rem; font-weight: 600; color: var(--text); }
+    .count-pill {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 600;
+      padding: 4px 10px; border-radius: 6px; background: rgba(255,255,255,0.05);
+      color: var(--subtext1); border: 1px solid rgba(255,255,255,0.08);
+    }
+    
+    /* Storytelling Insight Section */
+    .insight-box {
+      margin-bottom: 1.5rem;
+      padding-left: 1rem;
+      border-left: 2px solid var(--surface1);
+      position: relative; z-index: 2;
+    }
+    .insight-primary { font-size: 0.9rem; color: var(--subtext); margin-bottom: 0.4rem; line-height: 1.5; }
+    .insight-secondary {
+      font-size: 0.8rem; font-weight: 600; color: var(--text);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .insight-trend-bad { color: var(--red); }
+    .insight-trend-good { color: var(--green); }
+    .insight-trend-warn { color: var(--peach); }
+    .insight-trend-neutral { color: var(--blue); }
+
+    /* Chart Container */
+    .chart-container {
+      position: relative;
+      height: 320px;
+      width: 100%;
+      z-index: 2;
+    }
+
+    /* Small Footer Stats */
+    .card-footer {
+      display: flex; gap: 1rem; margin-top: 1.5rem; position: relative; z-index: 2;
+      border-top: 1px solid rgba(255,255,255,0.04); padding-top: 1.25rem;
+    }
+    .foot-stat {
+      flex: 1;
+      background: rgba(0,0,0,0.15); border-radius: 10px; padding: 10px 14px;
+      border: 1px solid rgba(255,255,255,0.03); transition: background 0.2s;
+    }
+    .saas-card:hover .foot-stat { background: rgba(0,0,0,0.25); }
+    .fs-label { font-size: 0.7rem; color: var(--subtext); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;}
+    .fs-val { font-size: 1.1rem; font-weight: 700; color: var(--text); font-family: 'JetBrains Mono'; }
+
+    /* =============================================
+       4. CUSTOM HTML TOOLTIP (LINEAR STYLE)
+    ============================================= */
+    #global-tooltip {
+      position: fixed;
+      z-index: 9999;
+      background: rgba(24, 24, 37, 0.92);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 12px 16px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.2);
+      pointer-events: none;
+      opacity: 0;
+      transform: translate(-50%, -100%) translateY(10px) scale(0.95);
+      transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      color: var(--text);
+      min-width: 160px;
+    }
+    #global-tooltip.active {
+      opacity: 1;
+      transform: translate(-50%, -100%) translateY(-10px) scale(1);
+    }
+    .tt-header { font-size: 0.75rem; font-weight: 600; color: var(--subtext); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; }
+    .tt-body { display: flex; flex-direction: column; gap: 6px; }
+    .tt-row { display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; font-weight: 500; }
+    .tt-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; display: inline-block; box-shadow: 0 0 6px currentColor; }
+    .tt-val { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+
+    /* =============================================
+       5. INTERACTIVE MODAL (ON CLICK) - FIXED & RESPONSIVE
+    ============================================= */
+    .insight-modal-overlay {
+      position: fixed; 
+      inset: 0; 
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(12px); 
+      -webkit-backdrop-filter: blur(12px);
+      z-index: 9999; 
+      opacity: 0;
+      pointer-events: none; 
+      transition: opacity 0.3s ease;
+      display: flex; 
+      align-items: center; 
+      justify-content: center;
+      overflow-y: auto;
+      padding: 1rem;
+    }
+    .insight-modal-overlay.open { 
+      opacity: 1; 
+      pointer-events: all; 
+    }
+    
+    .insight-modal {
+      background: var(--mantle); 
+      border: 1px solid var(--surface0);
+      border-radius: 16px; 
+      padding: 2rem; 
+      width: 100%; 
+      max-width: 600px;
+      max-height: 80vh;
+      transform: translateY(20px) scale(0.95); 
+      transition: all 0.4s var(--ease-elastic);
+      box-shadow: 0 25px 50px rgba(0,0,0,0.7), 0 0 1px rgba(255,255,255,0.1); 
+      position: relative;
+      border-top: 3px solid var(--modal-color, var(--blue));
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .insight-modal-overlay.open .insight-modal { 
+      transform: translateY(0) scale(1); 
+    }
+    
+    .modal-close {
+      position: absolute; 
+      top: 1.5rem; 
+      right: 1.5rem; 
+      background: transparent; 
+      border: none;
+      color: var(--subtext); 
+      cursor: pointer; 
+      padding: 8px; 
+      border-radius: 6px;
+      font-size: 1.2rem;
+      transition: all 0.2s ease;
+      z-index: 10;
+    }
+    .modal-close:hover { 
+      background: rgba(255,255,255,0.1); 
+      color: var(--text); 
+      transform: scale(1.1);
+    }
+    
+    .modal-title { 
+      font-size: 1.25rem; 
+      font-weight: 600; 
+      margin-bottom: 0.75rem; 
+      display: flex; 
+      align-items: center; 
+      gap: 10px;
+      padding-right: 2rem;
+      flex-wrap: wrap;
+    }
+    .modal-count-badge { 
+      font-size: 0.75rem; 
+      font-weight: 700; 
+      color: var(--text); 
+      background: rgba(255,255,255,0.08);
+      padding: 6px 12px; 
+      border-radius: 12px; 
+      border: 1px solid rgba(255,255,255,0.1); 
+      margin-left: auto;
+    }
+    .modal-body { 
+      color: var(--subtext); 
+      font-size: 0.9rem; 
+      line-height: 1.6; 
+      margin-bottom: 1.25rem;
+      flex-shrink: 0;
+    }
+    
+    .student-list-container {
+      background: rgba(0,0,0,0.2); 
+      border: 1px solid rgba(255,255,255,0.05); 
+      border-radius: 10px;
+      padding: 0; 
+      margin-bottom: 1.5rem; 
+      max-height: 300px; 
+      overflow-y: auto;
+      flex: 1;
+      min-height: 100px;
+      scroll-behavior: smooth;
+    }
+    .student-list-container::-webkit-scrollbar {
+      width: 6px;
+    }
+    .student-list-container::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .student-list-container::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      transition: background 0.2s;
+    }
+    .student-list-container::-webkit-scrollbar-thumb:hover {
+      background: rgba(255,255,255,0.2);
+    }
+    .student-row {
+      display: flex; align-items: center; justify-content: space-between; padding: 10px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 0.85rem; transition: background 0.15s ease;
+    }
+    .student-row:last-child { border-bottom: none; }
+    .student-row:hover { background: rgba(255,255,255,0.05); }
+    .student-row.critical { border-left: 3px solid var(--red); }
+    .student-row.atrisk { border-left: 3px solid var(--peach); }
+    .student-row.watch { border-left: 3px solid var(--yellow); }
+    .student-row.stable { border-left: 3px solid var(--blue); }
+    .student-row.exemplary { border-left: 3px solid var(--green); }
+    
+    .sr-id { font-family: 'JetBrains Mono'; font-weight: 600; color: var(--text); width: 60px; }
+    .sr-score { display: flex; align-items: center; gap: 8px; flex: 1; }
+    .sr-status { 
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 3px 8px;
+      border-radius: 4px; background: rgba(255,255,255,0.06); letter-spacing: 0.3px;
+    }
+    .sr-status.critical { color: var(--red); background: rgba(255,71,87,0.15); }
+    .sr-status.atrisk { color: var(--peach); background: rgba(255,131,89,0.15); }
+    .sr-status.watch { color: var(--yellow); background: rgba(255,217,61,0.15); }
+    .sr-status.stable { color: var(--blue); background: rgba(0,212,255,0.15); }
+    .sr-status.exemplary { color: var(--green); background: rgba(11,255,136,0.15); }
+    
+    .modal-actions {
+      display: flex; 
+      gap: 0.75rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      margin-top: auto;
+      flex-shrink: 0;
+      background: linear-gradient(180deg, transparent, var(--mantle));
+    }
+    .modal-action-btn {
+      flex: 1; 
+      padding: 12px 16px; 
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1); 
+      border-radius: 8px; 
+      color: var(--text);
+      font-weight: 600; 
+      cursor: pointer; 
+      transition: all 0.2s ease; 
+      text-align: center; 
+      font-size: 0.85rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .modal-action-btn:hover { 
+      background: rgba(255,255,255,0.1); 
+      border-color: rgba(255,255,255,0.2);
+      transform: translateY(-2px); 
+    }
+    .modal-action-btn:active { 
+      transform: translateY(0); 
+    }
+    .modal-action-btn.primary { 
+      background: var(--modal-color, var(--blue)); 
+      border-color: var(--modal-color, var(--blue));
+      box-shadow: 0 0 12px rgba(0,212,255,0.3);
+    }
+    .modal-action-btn.primary:hover { 
+      background: var(--modal-color, var(--blue)); 
+      box-shadow: 0 0 16px rgba(0,212,255,0.5);
+    }
+
+    /* Custom Doughnut Center Text Plugin overrides */
+    .donut-center-container {
+      position: absolute; inset: 0; pointer-events: none;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .dc-value { font-family: 'JetBrains Mono'; font-size: 3.5rem; font-weight: 800; line-height: 1; text-shadow: 0 4px 16px rgba(0,0,0,0.4); transition: color 0.3s;}
+    .dc-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--subtext); margin-top: 4px; font-weight: 600; }
+
+    /* Grid layouts */
+    .layout-2w { grid-template-columns: repeat(2, 1fr); }
+    .layout-1w { grid-template-columns: 1fr; }
+    @media (max-width: 1024px) { .layout-2w { grid-template-columns: 1fr; } }
+    
+    /* Modal Responsive Design */
+    @media (max-width: 768px) {
+      .insight-modal {
+        max-width: 95%;
+        max-height: 90vh;
+        padding: 1.5rem;
+        margin: 1rem auto;
+      }
+      .modal-title {
+        font-size: 1.1rem;
+        margin-bottom: 0.5rem;
+      }
+      .modal-body {
+        font-size: 0.85rem;
+      }
+      .student-list-container {
+        max-height: 250px;
+        margin-bottom: 1rem;
+      }
+      .modal-action-btn {
+        padding: 10px 12px;
+        font-size: 0.8rem;
+      }
+      .modal-close {
+        top: 1rem;
+        right: 1rem;
+        padding: 6px;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .insight-modal {
+        max-width: 98%;
+        max-height: 95vh;
+        padding: 1.25rem;
+      }
+      .modal-title {
+        font-size: 1rem;
+        margin-bottom: 0.4rem;
+      }
+      .modal-body {
+        font-size: 0.8rem;
+        margin-bottom: 0.75rem;
+      }
+      .student-list-container {
+        max-height: 200px;
+        margin-bottom: 0.75rem;
+        border-radius: 8px;
+      }
+      .student-row {
+        padding: 8px 10px;
+        font-size: 0.8rem;
+      }
+      .sr-id {
+        width: 50px;
+        font-size: 0.75rem;
+      }
+      .modal-actions {
+        gap: 0.5rem;
+        padding-top: 1rem;
+      }
+      .modal-action-btn {
+        padding: 9px 10px;
+        font-size: 0.75rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HTML CUSTOM TOOLTIP -->
+  <div id="global-tooltip">
+    <div class="tt-header" id="tt-head">Details</div>
+    <div class="tt-body" id="tt-body"></div>
+  </div>
+
+  <!-- INTERACTIVE MODAL -->
+  <div class="insight-modal-overlay" id="insight-modal" onclick="closeModal(event)">
+    <div class="insight-modal" onclick="event.stopPropagation()">
+      <button class="modal-close" onclick="closeModal(event, true)">✖</button>
+      <div class="modal-title" id="modal-title">
+        <span class="cat-indicator" id="modal-dot" style="background:var(--blue)"></span>
+        <span id="modal-head">Insight Details</span>
+        <span class="modal-count-badge" id="modal-count-badge">7 students</span>
+      </div>
+      <div class="modal-body" id="modal-desc">Loading context...</div>
+      <div class="student-list-container" id="student-list-container"></div>
+      <div class="modal-actions">
+        <button class="modal-action-btn" onclick="showFullReport()">View Full Report →</button>
+        <button class="modal-action-btn primary" onclick="notifyMentors()">Notify Mentor →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STICKY NAV -->
+  <nav class="glass-nav">
+    <a href="/dashboard" class="nav-back">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back
+    </a>
+    <div style="font-size: 0.9rem; font-weight: 600; color: var(--text);">Student Analytics</div>
+    
+    <div class="nav-dots">
+      <div class="nav-dot-wrap"><div class="nav-dot" style="--dc:var(--blue)" data-cat="overview" onclick="scrollToId('sec-overview')"></div><div class="nav-tip">Overview</div></div>
+      <div class="nav-dot-wrap"><div class="nav-dot" style="--dc:var(--red)" data-cat="critical" onclick="scrollToId('sec-critical')"></div><div class="nav-tip">Critical Risk</div></div>
+      <div class="nav-dot-wrap"><div class="nav-dot" style="--dc:var(--peach)" data-cat="atrisk" onclick="scrollToId('sec-atrisk')"></div><div class="nav-tip">At Risk</div></div>
+      <div class="nav-dot-wrap"><div class="nav-dot" style="--dc:var(--yellow)" data-cat="watch" onclick="scrollToId('sec-watch')"></div><div class="nav-tip">Watch Zone</div></div>
+      <div class="nav-dot-wrap"><div class="nav-dot" style="--dc:var(--blue)" data-cat="stable" onclick="scrollToId('sec-stable')"></div><div class="nav-tip">Stable</div></div>
+      <div class="nav-dot-wrap"><div class="nav-dot" style="--dc:var(--green)" data-cat="exemplary" onclick="scrollToId('sec-exemplary')"></div><div class="nav-tip">Exemplary</div></div>
+      <div class="nav-dot-wrap"><div class="nav-dot" style="--dc:var(--mauve)" data-cat="anomaly" onclick="scrollToId('sec-anomaly')"></div><div class="nav-tip">Unusual Patterns</div></div>
+    </div>
+  </nav>
+
+  <!-- HERO HEADER -->
+  <header class="header-hero">
+    <h1 class="hero-title">Cohort Health <span class="badge">Live</span></h1>
+    <p class="hero-subtitle">Advanced risk categorization and behavioral anomaly detection across 284 active students. Hover charts for deep context, click data points for specific action items.</p>
+  </header>
+
+  <!-- DASHBOARD GRID -->
+  <main class="dashboard-grid">
+
+    <!-- 1. OVERVIEW: DOUGHNUT + TREND (2 columns) -->
+    <div class="dashboard-grid layout-2w" style="padding:0; gap:2rem;" id="sec-overview">
+      
+      <!-- Overview Doughnut -->
+      <div class="saas-card" style="--cc: var(--blue);">
+        <div class="card-head">
+          <div class="card-title-wrap">
+            <div class="cat-indicator" style="background: linear-gradient(135deg, var(--lavender), var(--blue)); box-shadow: 0 0 12px rgba(137,180,250,0.5);"></div>
+            <div class="card-title">Distribution Overview</div>
+          </div>
+        </div>
+        <div class="insight-box">
+          <div class="insight-primary">Breakdown of the entire student body by current risk tier.</div>
+          <div class="insight-secondary insight-trend-warn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            18.3% of students require attention (Watch or below)
+          </div>
+        </div>
+        <div class="chart-container" style="height: 280px; position:relative;">
+          <canvas id="chart-overview"></canvas>
+          <div class="donut-center-container">
+            <div class="dc-value" id="dc-val" style="color:var(--text)">284</div>
+            <div class="dc-label" id="dc-lab">Total Students</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trend Summary Line -->
+      <div class="saas-card" style="--cc: var(--lavender);">
+        <div class="card-head">
+          <div class="card-title-wrap">
+             <div class="cat-indicator" style="background: var(--lavender); box-shadow: 0 0 12px rgba(180,190,254,0.5);"></div>
+            <div class="card-title">Cross-Category Migration</div>
+          </div>
+        </div>
+        <div class="insight-box">
+          <div class="insight-primary">Tracking movement between risk tiers over the last 8 weeks.</div>
+          <div class="insight-secondary insight-trend-bad">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 6l-9.5 9.5-5-5L1 18M23 6h-6M23 6v6"/></svg>
+            Critical Risk cohort grew by 50% since Week 1
+          </div>
+        </div>
+        <div class="chart-container" style="height: 280px;">
+          <canvas id="chart-trend"></canvas>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- 2. CRITICAL RISK (Line with gradient fill) -->
+    <div class="saas-card" id="sec-critical" style="--cc: var(--red);">
+      <div class="card-head">
+        <div class="card-title-wrap">
+          <div class="cat-indicator" style="background: var(--red);"></div>
+          <div class="card-title">Critical Risk Trajectories</div>
+        </div>
+        <div class="count-pill">n=18</div>
+      </div>
+      <div class="insight-box">
+        <div class="insight-primary">Individual tracks for the bottom 5 students currently under 60% attendance threshold.</div>
+        <div class="insight-secondary insight-trend-bad">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+          S-011 and S-042 show continuous unmitigated decline. Intervention mandatory.
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas id="chart-critical"></canvas>
+      </div>
+      <div class="card-footer">
+        <div class="foot-stat"><div class="fs-label">Avg Attendance</div><div class="fs-val" style="color:var(--red)">48.2%</div></div>
+        <div class="foot-stat"><div class="fs-label">Absence Streak</div><div class="fs-val">4.5 days</div></div>
+        <div class="foot-stat"><div class="fs-label">Last Week Change</div><div class="fs-val" style="color:var(--red)">-2.1%</div></div>
+      </div>
+    </div>
+
+
+    <!-- 3. AT RISK (Bar with multi-gradient) -->
+    <div class="saas-card" id="sec-atrisk" style="--cc: var(--peach);">
+      <div class="card-head">
+        <div class="card-title-wrap">
+          <div class="cat-indicator" style="background: var(--peach);"></div>
+          <div class="card-title">At Risk Borderline Monitoring</div>
+        </div>
+        <div class="count-pill">n=34</div>
+      </div>
+      <div class="insight-box">
+        <div class="insight-primary">Students hovering between 60–74%. Ranked from closest to critical to closest to watch zone.</div>
+         <div class="insight-secondary insight-trend-warn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 21h4v-2h-4v2zm2-18C8.13 3 5 6.13 5 10c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-1.26c1.81-1.27 3-3.36 3-5.74 0-3.87-3.13-7-7-7z"/></svg>
+          9 students are exactly at 60-61%, one missed class triggers Critical status.
+        </div>
+      </div>
+      <div class="chart-container" style="height: 380px;">
+        <canvas id="chart-atrisk"></canvas>
+      </div>
+      <div class="card-footer">
+        <div class="foot-stat"><div class="fs-label">Group Average</div><div class="fs-val" style="color:var(--peach)">66.8%</div></div>
+        <div class="foot-stat"><div class="fs-label">Migration Risk</div><div class="fs-val">High</div></div>
+      </div>
+    </div>
+
+
+    <!-- 4. WATCH ZONE (Horizontal Bar) -->
+    <div class="saas-card" id="sec-watch" style="--cc: var(--yellow);">
+      <div class="card-head">
+        <div class="card-title-wrap">
+          <div class="cat-indicator" style="background: var(--yellow);"></div>
+          <div class="card-title">Watch Zone Proximity</div>
+        </div>
+        <div class="count-pill">n=42</div>
+      </div>
+      <div class="insight-box">
+        <div class="insight-primary">Buffer zone (75-79%). Length represents distance to the 75% danger threshold.</div>
+        <div class="insight-secondary insight-trend-neutral">
+           Soft nudges via email recommended for students at 75%.
+        </div>
+      </div>
+      <div class="chart-container" style="height: 400px;">
+        <canvas id="chart-watch"></canvas>
+      </div>
+    </div>
+
+
+    <!-- 5. STABLE & EXEMPLARY (2 columns) -->
+    <div class="dashboard-grid layout-2w" style="padding:0; gap:2rem;">
+      
+      <!-- Stable Histogram -->
+      <div class="saas-card" id="sec-stable" style="--cc: var(--blue);">
+        <div class="card-head">
+          <div class="card-title-wrap">
+            <div class="cat-indicator" style="background: var(--blue);"></div>
+            <div class="card-title">Stable Distribution</div>
+          </div>
+          <div class="count-pill">n=112</div>
+        </div>
+        <div class="insight-box">
+          <div class="insight-primary">Volume of students in the healthy 80-90% range.</div>
+          <div class="insight-secondary insight-trend-good">
+             Healthy normal distribution peaking at 84-86%. Core cohort is stable.
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="chart-stable"></canvas>
+        </div>
+      </div>
+
+      <!-- Exemplary Streak -->
+      <div class="saas-card" id="sec-exemplary" style="--cc: var(--green);">
+        <div class="card-head">
+          <div class="card-title-wrap">
+            <div class="cat-indicator" style="background: var(--green);"></div>
+            <div class="card-title">Exemplary Streaks</div>
+          </div>
+          <div class="count-pill">n=71</div>
+        </div>
+        <div class="insight-box">
+          <div class="insight-primary">Unbroken attendance streaks for top performers.</div>
+          <div class="insight-secondary insight-trend-good">
+            S-301 leads the cohort with an unbroken 32-day attendance streak.
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="chart-exemplary"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 6. DBSCAN ANOMALY SCATTER (Synthetic Data) -->
+    <div class="saas-card" id="sec-anomaly" style="--cc: var(--mauve);">
+      <div class="card-head">
+        <div class="card-title-wrap">
+          <div class="cat-indicator" style="background: var(--mauve); animation: pulseDot 2s infinite;"></div>
+          <div class="card-title">Attendance Anomaly Detection (DBSCAN)</div>
+        </div>
+        <div class="count-pill" id="dbscan-count-pill">n=138</div>
+      </div>
+      <div class="insight-box">
+        <div class="insight-primary">DBSCAN clustering on synthetic 2D attendance data. Dense core cluster = consistent students. Scattered outliers = anomalous attendance patterns.</div>
+        <div class="insight-secondary insight-trend-bad">
+          <span style="display:inline-block; width:8px; height:8px; border-radius:50%; border:2px dashed var(--mauve); margin-right:6px;"></span>
+          Click any point for detailed student info. Red-orange dots indicate students flagged by ML anomaly detection.
+        </div>
+      </div>
+      <div class="chart-container" style="height: 420px;">
+        <canvas id="chart-anomaly"></canvas>
+      </div>
+      <div class="card-footer">
+        <div class="foot-stat"><div class="fs-label">DBSCAN Params</div><div class="fs-val" style="color:var(--mauve)">Eps=0.4, MinPts=5 (scaled)</div></div>
+        <div class="foot-stat"><div class="fs-label">Core Students</div><div class="fs-val" id="dbscan-core-count" style="color:var(--blue)">~120</div></div>
+        <div class="foot-stat"><div class="fs-label">Anomalies Flagged</div><div class="fs-val" id="dbscan-anomaly-count" style="color:var(--red)">~18</div></div>
+      </div>
+    </div>
+
+    <!-- DBSCAN Point Detail Modal -->
+    <div class="dbscan-modal-overlay" id="dbscan-detail-modal" onclick="closeDbscanModal(event)">
+      <div class="dbscan-modal" id="dbscan-modal-content" onclick="event.stopPropagation()">
+        <button class="modal-close" onclick="closeDbscanModal(event, true)">✖</button>
+        <div class="dbscan-modal-header" id="dbscan-modal-header">
+          <span class="dbscan-modal-icon" id="dbscan-modal-icon">●</span>
+          <span class="dbscan-modal-title" id="dbscan-modal-title">Student Details</span>
+        </div>
+        <div class="dbscan-modal-body" id="dbscan-modal-body"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <style>
+    @keyframes pulseDot { 0%, 100% { box-shadow: 0 0 0 0 rgba(203,166,247,0.6); } 50% { box-shadow: 0 0 0 8px rgba(203,166,247,0); } }
+    
+    /* DBSCAN Detail Modal */
+    .dbscan-modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(6px);
+      z-index: 9999; display: none; align-items: center; justify-content: center;
+    }
+    .dbscan-modal-overlay.open { display: flex; }
+    .dbscan-modal {
+      background: var(--mantle); border-radius: 16px; padding: 2rem;
+      max-width: 420px; width: 90%; position: relative;
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      animation: dbscanModalIn 0.25s ease-out;
+    }
+    @keyframes dbscanModalIn { from { opacity: 0; transform: scale(0.92) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    .dbscan-modal.anomaly-modal { border-color: rgba(232,64,64,0.5); box-shadow: 0 0 30px rgba(232,64,64,0.15), 0 20px 60px rgba(0,0,0,0.5); }
+    .dbscan-modal.normal-modal { border-color: rgba(74,144,217,0.4); box-shadow: 0 0 20px rgba(74,144,217,0.1), 0 20px 60px rgba(0,0,0,0.5); }
+    .dbscan-modal-header { display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .dbscan-modal-icon { font-size: 1.5rem; }
+    .dbscan-modal-title { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+    .dbscan-modal-body { font-size: 0.9rem; color: var(--subtext); }
+    .dbscan-detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .dbscan-detail-row:last-child { border-bottom: none; }
+    .dbscan-detail-label { color: var(--subtext); font-weight: 500; }
+    .dbscan-detail-value { color: var(--text); font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .dbscan-anomaly-reason {
+      margin-top: 1rem; padding: 12px 16px; border-radius: 10px;
+      background: rgba(232,64,64,0.1); border: 1px solid rgba(232,64,64,0.25);
+      color: #ff6b6b; font-weight: 600; font-size: 0.85rem;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .dbscan-normal-status {
+      margin-top: 1rem; padding: 12px 16px; border-radius: 10px;
+      background: rgba(74,144,217,0.1); border: 1px solid rgba(74,144,217,0.25);
+      color: #6bb8ff; font-weight: 600; font-size: 0.85rem;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .dbscan-sparkline { margin-top: 0.75rem; font-size: 0.8rem; color: #ffaa6b; font-style: italic; }
+
+    /* Trigger Alert Button */
+    .trigger-alert-btn {
+      display: block; width: 100%; margin-top: 1.25rem; padding: 14px 20px;
+      background: #E84040; color: #fff; border: none; border-radius: 8px;
+      font-size: 0.95rem; font-weight: 700; cursor: pointer;
+      font-family: 'Space Grotesk', sans-serif;
+      transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+      box-shadow: 0 4px 16px rgba(232,64,64,0.3);
+    }
+    .trigger-alert-btn:hover { background: #c0392b; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(192,57,43,0.4); }
+    .trigger-alert-btn:active { transform: translateY(0); }
+    .trigger-alert-btn:disabled {
+      background: #555; cursor: not-allowed; opacity: 0.6;
+      box-shadow: none; transform: none;
+    }
+
+    /* Alert Confirmed Block */
+    .alert-confirmed {
+      margin-top: 1.25rem; padding: 16px 20px; border-radius: 12px;
+      background: rgba(39,174,96,0.1); border-left: 4px solid #27ae60;
+      animation: alertFadeIn 0.4s ease-out;
+    }
+    .alert-confirmed h3 { color: #2ecc71; font-size: 1rem; margin: 0 0 10px; }
+    .alert-confirmed p { color: var(--subtext); font-size: 0.85rem; margin: 5px 0; }
+    .alert-confirmed p strong { color: var(--text); }
+    .alert-confirmed small { display: block; margin-top: 10px; color: #7f8c8d; font-size: 0.75rem; font-style: italic; }
+    @keyframes alertFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Already Alerted Message */
+    .alert-already-sent {
+      margin-top: 1.25rem; padding: 12px 16px; border-radius: 10px;
+      background: rgba(255,140,0,0.1); border: 1px solid rgba(255,140,0,0.3);
+      color: #ffaa6b; font-weight: 600; font-size: 0.85rem;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    /* Pulsing ring for alerted dots on chart */
+    @keyframes alertPulseRing { 0%,100% { opacity: 0.8; } 50% { opacity: 0.3; } }
+  </style>
+
+  <!-- =============================================
+       DATA CONFIGURATION & JS LOGIC
+  ============================================= -->
+  <script>
+    // --- 1. COLOR CONFIG ---
+    const COLORS = {
+      base: '#0a0e27', mantle: '#0f1428', surface0: '#1a1f3a', surface1: '#25355c', surface2: '#2d4073',
+      text: '#ffffff', subtext: '#b0b9d0', 
+      red: '#ff4757', peach: '#ff8359', yellow: '#ffd93d', blue: '#00d4ff', green: '#0bff88', mauve: '#da70d6', teal: '#2dd4bf'
+    };
+
+    // --- 2. REAL DATA VARIABLES (populated from API) ---
+    let studentsData = [];
+    let weeklyTrends = [];
+    let riskDistribution = {};
+    let anomalyStudents = [];
+    
+    // --- 3. LOAD DATA FROM DATABASE APIS ---
+    async function loadAnalyticsData() {
+      try {
+        console.log('📊 Loading analytics data from 5 APIs...');
+        
+        const [students, trends, risk, anomalies] = await Promise.all([
+          fetch('/api/analytics/students').then(r => r.json()),
+          fetch('/api/analytics/weekly-trends').then(r => r.json()),
+          fetch('/api/analytics/risk-distribution').then(r => r.json()),
+          fetch('/api/analytics/anomalies').then(r => r.json())
+        ]);
+        
+        studentsData = students || [];
+        weeklyTrends = trends || [];
+        riskDistribution = risk || {};
+        anomalyStudents = anomalies || [];
+        
+        console.log('✓ Students loaded:', studentsData.length);
+        console.log('✓ Weekly trends loaded:', weeklyTrends.length);
+        console.log('✓ Risk distribution:', riskDistribution);
+        console.log('✓ Anomalies detected:', anomalyStudents.length);
+        console.log('✓ DBSCAN synthetic data already loaded (server-side):', DBSCAN_DATA.cluster_stats);
+        
+        // Merge anomalies into studentsData
+        anomalyStudents.forEach(a => {
+          const idx = studentsData.findIndex(s => s.id === a.id);
+          if (idx !== -1) Object.assign(studentsData[idx], a);
+          else studentsData.push(a);
+        });
+        
+        console.log('✓ Data validation complete - Students with anomaly flag:', studentsData.filter(s => s.isAnomaly).length);
+        console.log('Data loaded successfully. Rendering charts...');
+        
+        // ONLY call charts after data is ready
+        renderAllCharts();
+        
+      } catch(err) {
+        console.error('❌ Analytics data fetch failed:', err);
+        console.error('Stack:', err.stack);
+        // Show error to user
+        alert('Failed to load analytics data. Check browser console for details.');
+      }
+    }
+    
+    // Call on page load
+    document.addEventListener('DOMContentLoaded', loadAnalyticsData);
+    
+    // --- MOCK DATA FOR REMAINING CHARTS (Keep for now for backward compatibility) ---
+    const DATA = {
+      critical: {
+        weeks: ['W1','W2','W3','W4','W5','W6','W7','W8'],
+        students: [
+          { id: 'S-011', data: [58,55,52,48,51,47,43,41] },
+          { id: 'S-023', data: [55,54,50,51,48,46,44,43] },
+          { id: 'S-042', data: [52,50,47,44,42,40,42,44] }
+        ]
+      },
+      atRisk: {
+        labels: Array.from({length:34}, (_,i)=>`S-${101+i}`),
+        values: [74,73,73,72,71,70,70,69,69,68,68,67,67,66,66,65,65,64,64,63,63,62,62,61,61,61,60,60,60,60,60,60,60,60]
+      },
+      watch: {
+        labels: Array.from({length:20}, (_,i)=>`S-${201+i}`),
+        values: [79,79,78,78,78,77,77,77,76,76,76,76,75,75,75,75,75,75,75,75]
+      },
+      stable: {
+        bins: ['80-82','82-84','84-86','86-88','88-90'],
+        counts: [14, 28, 38, 24, 8]
+      },
+      exemplary: {
+        weeks: ['W1','W2','W3','W4','W5','W6','W7','W8'],
+        students: [
+          { id: 'S-301', streak: [3,7,7,14,18,23,28,32] },
+          { id: 'S-314', streak: [5,8,11,14,19,22,25,30] }
+        ]
+      },
+      anomaly: { data: [] }  // DBSCAN anomaly data now injected from server-side synthetic generation
+    };
+
+    // --- DBSCAN Synthetic Data (injected from Flask) ---
+    const DBSCAN_DATA = {{ dbscan_data | safe }};
+    console.log('✓ DBSCAN synthetic data loaded:', DBSCAN_DATA.cluster_stats);
+
+    // Track students who have already been alerted (persists during page session)
+    const alertedStudents = new Set();
+
+    // --- 2. GLOBAL CHART SETTINGS & CUSTOM TOOLTIP ---
+    Chart.defaults.font.family = "'Space Grotesk', sans-serif";
+    Chart.defaults.color = COLORS.subtext;
+    Chart.defaults.scale.grid.color = 'rgba(255,255,255,0.03)';
+    Chart.defaults.scale.border.display = false;
+
+    // Advanced Custom HTML Tooltip (Linear style)
+    const customTooltip = (context) => {
+      const { chart, tooltip } = context;
+      const tt = document.getElementById('global-tooltip');
+      
+      if (tooltip.opacity === 0) {
+        tt.classList.remove('active');
+        return;
+      }
+
+      // Title
+      const title = tooltip.title[0] || 'Insight';
+      document.getElementById('tt-head').innerText = title;
+
+      // Body (Rows)
+      let innerHtml = '';
+      tooltip.body.forEach((b, i) => {
+        const colors = tooltip.labelColors[i];
+        let valRaw = b.lines[0];
+        // Clean up string manually since Chart.js passes exactly what legend shows
+        let label = valRaw.split(':')[0] || '';
+        let val = valRaw.split(':')[1] || valRaw;
+        
+        innerHtml += `
+          <div class="tt-row">
+            <div><span class="tt-dot" style="background:${colors.backgroundColor}; color:${colors.borderColor}"></span><span style="color:#a6adc8">${label}</span></div>
+            <div class="tt-val">${val}</div>
+          </div>
+        `;
+      });
+      document.getElementById('tt-body').innerHTML = innerHtml;
+
+      // Positioning
+      const pos = chart.canvas.getBoundingClientRect();
+      tt.style.left = pos.left + window.pageXOffset + tooltip.caretX + 'px';
+      tt.style.top = pos.top + window.pageYOffset + tooltip.caretY + 'px';
+      tt.classList.add('active');
+    };
+
+    const commonTooltipOpts = { enabled: false, external: customTooltip, interaction: { mode: 'index', intersect: false } };
+
+    // Common plugins config (without global onClick)
+    const commonOpts = {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: commonTooltipOpts },
+      interaction: { mode: 'index', intersect: false },
+      animation: { duration: 1200, easing: 'easeOutQuart' }
+    };
+    const xGridObj = { grid: { display: false }, ticks: { color: COLORS.subtext } };
+    const yGridObj = { grid: { color: 'rgba(255,255,255,0.03)', drawBorder: false }, ticks: { color: COLORS.subtext, font: {family: "'JetBrains Mono'"} } };
+
+    function destroyChartInstance(ctx) {
+      if (ctx?.canvas?._chartInstance) {
+        ctx.canvas._chartInstance.destroy();
+        ctx.canvas._chartInstance = null;
+      }
+    }
+
+    function normalizeRisk(risk) {
+      return risk === 'at_risk' ? 'atrisk' : risk;
+    }
+
+    function getStudentsByRisk(risk) {
+      return studentsData.filter(s => normalizeRisk(s.risk) === risk);
+    }
+
+    function getStudentScore(student, fallback = 0) {
+      const score = parseFloat(student?.score ?? student?.currentScore ?? fallback);
+      return Number.isFinite(score) ? score : fallback;
+    }
+
+    function isAnomalyStudent(student) {
+      return student?.isAnomaly === true || student?.is_anomaly === true;
+    }
+
+    // --- 3. CHART BUILDERS ---
+
+    // A. Doughnut
+    function buildOverview(ctx) {
+      destroyChartInstance(ctx);
+
+      // Hover states for center text
+      const updateCenter = (val, color, lbl) => {
+        const dcVal = document.getElementById('dc-val');
+        const dcLab = document.getElementById('dc-lab');
+        dcVal.innerText = val; dcVal.style.color = color; dcLab.innerText = lbl;
+      };
+      
+      // Use real data from API
+      const labels = ['Critical', 'At Risk', 'Watch Zone', 'Stable', 'Exemplary'];
+      const data = [
+        riskDistribution.critical  || 0,
+        riskDistribution.at_risk   || riskDistribution.atrisk || 0,
+        riskDistribution.watch     || 0,
+        riskDistribution.stable    || 0,
+        riskDistribution.exemplary || 0
+      ];
+      const colors = [COLORS.red, COLORS.peach, COLORS.yellow, COLORS.blue, COLORS.green];
+      
+      return new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: colors.map(c=>c+'E6'),
+            borderColor: COLORS.surface0,
+            borderWidth: 2,
+            hoverBackgroundColor: colors,
+            hoverBorderColor: COLORS.base,
+            hoverOffset: 8
+          }]
+        },
+        options: {
+          ...commonOpts,
+          cutout: '75%',
+          onClick: (e, elements) => {
+            if(elements.length > 0) {
+              const idx = elements[0].index;
+              const label = labels[idx];
+              const riskMap = { 'Critical': 'critical', 'At Risk': 'atrisk', 'Watch Zone': 'watch', 'Stable': 'stable', 'Exemplary': 'exemplary' };
+              const filtered = getStudentsByRisk(riskMap[label]);
+              showInsightModal('doughnut', label, filtered);
+            }
+          },
+          onHover: (e, elements) => {
+            if(elements && elements.length) {
+              const i = elements[0].index;
+              updateCenter(data[i], colors[i], labels[i]);
+            } else {
+              updateCenter(studentsData.length, COLORS.text, 'Total Students');
+            }
+          }
+        }
+      });
+    }
+
+    // B. Multi-Line Trend
+    function buildTrend(ctx) {
+      destroyChartInstance(ctx);
+
+      const gradientBg = ctx.createLinearGradient(0, 0, 0, 300);
+      gradientBg.addColorStop(0, COLORS.blue + '33');
+      gradientBg.addColorStop(1, COLORS.blue + '00');
+
+      const labels = weeklyTrends.map((_, i) => `W${i+1}`);
+      const values = weeklyTrends.map(w => parseFloat(w.avg_attendance) || 0);
+
+      return new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Average Attendance',
+            data: values,
+            borderColor: COLORS.blue,
+            fill: true,
+            backgroundColor: gradientBg,
+            borderWidth: 2,
+            tension: 0.4,
+            pointRadius: 0,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          ...commonOpts,
+          onClick: (e, elements) => {
+            if(elements.length > 0) {
+              const filtered = studentsData.slice(0, 10);
+              showInsightModal('line-trend', 'Weekly Attendance Trend', filtered);
+            }
+          },
+          scales: { x: xGridObj, y: yGridObj }
+        }
+      });
+    }
+
+    // C. Line with threshold (Critical)
+    function buildCritical(ctx) {
+      destroyChartInstance(ctx);
+
+      const g = ctx.createLinearGradient(0,0,0,300); g.addColorStop(0, COLORS.red+'40'); g.addColorStop(1, COLORS.red+'00');
+      const critical = getStudentsByRisk('critical')
+        .sort((a, b) => getStudentScore(a) - getStudentScore(b));
+      const labels = critical.map(s => s.id);
+      const values = critical.map(s => getStudentScore(s));
+
+      return new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Critical Score',
+              data: values,
+              borderColor: COLORS.red,
+              backgroundColor: g,
+              fill: true,
+              tension: 0.4,
+              borderWidth: 2,
+              pointRadius: 0,
+              pointHoverRadius: 6
+            },
+            {
+              label: 'Alert Line',
+              data: Array(labels.length).fill(60),
+              borderColor: COLORS.surface2,
+              borderDash: [6,6],
+              borderWidth: 1,
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          ...commonOpts,
+          onClick: (e, elements) => {
+            if(elements.length > 0) {
+              const filtered = getStudentsByRisk('critical').slice(0, 10);
+              showInsightModal('line-critical', 'Critical Trajectories', filtered);
+            }
+          },
+          scales: { x: xGridObj, y: { ...yGridObj, min: 30, max: 70 } }
+        }
+      });
+    }
+
+    // D. Gradient Bar (At Risk) - FIXED: 60-74% filter, horizontal, all students, comprehensive debugging
+    function buildAtRisk(ctx) {
+      destroyChartInstance(ctx);
+
+      // 1. Filter students between 60–74%
+      const borderline = studentsData.filter(s => getStudentScore(s) >= 60 && getStudentScore(s) <= 74);
+
+      // 2. Debug logs
+      console.log("📊 buildAtRisk() - API DATA:", studentsData);
+      console.log("📊 buildAtRisk() - Borderline Students (60-74%):", borderline);
+
+      // 3. Handle empty data
+      if (borderline.length === 0) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.font = "16px 'Space Grotesk', sans-serif";
+        ctx.fillStyle = "#b0b9d0";
+        ctx.textAlign = "center";
+        ctx.fillText("No students in this range", ctx.canvas.width / 2, ctx.canvas.height / 2);
+        console.warn("⚠️ buildAtRisk() - No students found in 60-74% range");
+        return null;
+      }
+
+      // 4. Sort ascending (closest to critical first)
+      borderline.sort((a, b) => getStudentScore(a) - getStudentScore(b));
+
+      // 5. Map labels and scores
+      const labels = borderline.map(s => s.name || s.id);
+      const scores = borderline.map(s => getStudentScore(s));
+
+      // 6. Final debug
+      console.log("📊 buildAtRisk() - Labels:", labels);
+      console.log("📊 buildAtRisk() - Scores:", scores);
+      console.log(`✓ Chart will display ${borderline.length} students between 60-74%`);
+
+      // 7. Horizontal bar chart
+      return new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Attendance %",
+            data: scores,
+            backgroundColor: "#ff8359cc",
+            borderRadius: 4,
+            hoverBackgroundColor: "#ff8359"
+          }]
+        },
+        options: {
+          ...commonOpts,
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          onClick: (e, elements) => {
+            if(elements.length > 0) {
+              const filtered = borderline.sort((a, b) => getStudentScore(a) - getStudentScore(b));
+              showInsightModal('bar-atrisk', 'At-Risk Students (60-74%)', filtered);
+            }
+          },
+          scales: {
+            x: { 
+              min: 50, 
+              max: 80,
+              ...yGridObj,
+              title: {
+                display: true,
+                text: 'Attendance %',
+                color: COLORS.text,
+                font: { size: 11, weight: 'bold' }
+              }
+            },
+            y: { 
+              ...xGridObj,
+              ticks: { font: { family: "'JetBrains Mono'", size: 10 } }
+            }
+          }
+        }
+      });
+    }
+
+    // E. Horizontal Bar (Watch)
+    function buildWatch(ctx) {
+      destroyChartInstance(ctx);
+
+      // Get watch zone students sorted by score (descending)
+      const watchStudents = getStudentsByRisk('watch').sort((a, b) => getStudentScore(b) - getStudentScore(a)).slice(0, 10);
+      const labels = watchStudents.map(s => s.id);
+      const values = watchStudents.map(s => getStudentScore(s));
+      
+      return new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [{ label: 'Curr %', data: values, backgroundColor: COLORS.yellow+'CC', borderRadius: 4, hoverBackgroundColor: COLORS.yellow }] },
+        options: {
+          ...commonOpts,
+          onClick: (e, elements) => {
+            if(elements.length > 0) {
+              const filtered = getStudentsByRisk('watch');
+              showInsightModal('bar-watch', 'Watch Zone (75-79%)', filtered);
+            }
+          },
+          indexAxis: 'y',
+          scales: { y: { ...xGridObj, ticks: { font: {family:'JetBrains Mono', size:10} } }, x: { ...yGridObj, min: 70, max: 80 } }
+        }
+      });
+    }
+
+    // F. Histogram (Stable)
+    function buildStable(ctx) {
+      destroyChartInstance(ctx);
+
+      // Create histogram of stable students by score ranges
+      const stableStudents = getStudentsByRisk('stable');
+      const bins = ['80-85%', '85-90%', '90-95%', '95-100%'];
+      const counts = [
+        stableStudents.filter(s => getStudentScore(s) >= 80 && getStudentScore(s) < 85).length,
+        stableStudents.filter(s => getStudentScore(s) >= 85 && getStudentScore(s) < 90).length,
+        stableStudents.filter(s => getStudentScore(s) >= 90 && getStudentScore(s) < 95).length,
+        stableStudents.filter(s => getStudentScore(s) >= 95 && getStudentScore(s) <= 100).length
+      ];
+      
+      return new Chart(ctx, {
+        type: 'bar',
+        data: { labels: bins, datasets: [{ label: 'Students', data: counts, backgroundColor: COLORS.blue+'CC', hoverBackgroundColor: COLORS.blue, borderRadius: 6 }] },
+        options: {
+          ...commonOpts,
+          onClick: (e, elements) => {
+            if(elements.length > 0) {
+              const binIdx = elements[0].index;
+              const filtered = getStudentsByRisk('stable').slice(0, 15);
+              showInsightModal('histogram', bins[binIdx], filtered);
+            }
+          },
+          scales: { x: xGridObj, y: yGridObj }
+        }
+      });
+    }
+
+    // G. Exemplary (Smooth Streaks)
+    function buildExemplary(ctx) {
+      destroyChartInstance(ctx);
+
+      const exemplaryStudents = getStudentsByRisk('exemplary')
+        .sort((a, b) => getStudentScore(b) - getStudentScore(a))
+        .slice(0, 8);
+      const labels = exemplaryStudents.map(s => s.id);
+      const values = exemplaryStudents.map(s => getStudentScore(s, 95));
+      
+      return new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Exemplary Score',
+            data: values,
+            borderColor: COLORS.green,
+            tension: 0.3,
+            borderWidth: 3,
+            pointRadius: 0,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          ...commonOpts,
+          onClick: (e, elements) => {
+            if(elements.length > 0) {
+              const filtered = getStudentsByRisk('exemplary').slice(0, 15);
+              showInsightModal('line-exemplary', 'Exemplary Streaks', filtered);
+            }
+          },
+          scales: { x: xGridObj, y: yGridObj }
+        }
+      });
+    }
+
+    // H. DBSCAN Scatter Anomaly — Synthetic Data Driven
+    function buildAnomaly(ctx) {
+      destroyChartInstance(ctx);
+
+      // Use server-injected synthetic DBSCAN data
+      const coreData = DBSCAN_DATA.core_points || [];
+      const anomalyData = DBSCAN_DATA.anomaly_points || [];
+      const stats = DBSCAN_DATA.cluster_stats || {};
+
+      // Update footer counts
+      const countPill = document.getElementById('dbscan-count-pill');
+      const coreCountEl = document.getElementById('dbscan-core-count');
+      const anomalyCountEl = document.getElementById('dbscan-anomaly-count');
+      if (countPill) countPill.textContent = `n=${stats.total_points || (coreData.length + anomalyData.length)}`;
+      if (coreCountEl) coreCountEl.textContent = coreData.length;
+      if (anomalyCountEl) anomalyCountEl.textContent = anomalyData.length;
+
+      console.log('🔵 DBSCAN Core points:', coreData.length);
+      console.log('🔴 DBSCAN Anomaly points:', anomalyData.length);
+
+      // Plugin to draw dashed rings around anomaly points and labels
+      // Alerted students get a pulsing orange ring + darker red fill
+      const dbscanPlugin = {
+        id: 'dbscanVisualization',
+        afterDraw(chart) {
+          const ctx2 = chart.ctx;
+          const metaAnom = chart.getDatasetMeta(0);
+          metaAnom.data.forEach((el, i) => {
+            const pt = anomalyData[i];
+            const isAlerted = pt && alertedStudents.has(pt.studentId);
+
+            ctx2.save();
+            ctx2.beginPath();
+            ctx2.arc(el.x, el.y, isAlerted ? 16 : 14, 0, Math.PI * 2);
+            ctx2.strokeStyle = isAlerted ? '#ff8c00' : '#E84040';
+            ctx2.lineWidth = isAlerted ? 3 : 2;
+            ctx2.setLineDash(isAlerted ? [] : [4, 4]);
+            ctx2.stroke();
+            ctx2.restore();
+
+            // If alerted, draw a filled darker-red dot on top
+            if (isAlerted) {
+              ctx2.save();
+              ctx2.beginPath();
+              ctx2.arc(el.x, el.y, 6, 0, Math.PI * 2);
+              ctx2.fillStyle = '#8B0000';
+              ctx2.fill();
+              ctx2.restore();
+            }
+
+            // Label
+            if (pt) {
+              ctx2.save();
+              ctx2.font = 'bold 8px "Space Grotesk"';
+              ctx2.fillStyle = isAlerted ? '#ff8c00' : '#E84040';
+              ctx2.textAlign = 'center';
+              ctx2.textBaseline = 'bottom';
+              ctx2.fillText(pt.studentId, el.x, el.y - (isAlerted ? 18 : 16));
+              ctx2.restore();
+            }
+          });
+        }
+      };
+
+      return new Chart(ctx, {
+        type: 'scatter',
+        plugins: [dbscanPlugin],
+        data: {
+          datasets: [
+            {
+              label: 'DBSCAN Anomaly',
+              data: anomalyData.map(p => ({ x: p.x, y: p.y, ...p })),
+              backgroundColor: '#E84040',
+              pointRadius: 6,
+              pointHoverRadius: 9,
+              borderColor: 'rgba(232,64,64,0.7)',
+              borderWidth: 2
+            },
+            {
+              label: 'Normal Behavior',
+              data: coreData.map(p => ({ x: p.x, y: p.y, ...p })),
+              backgroundColor: '#4A90D9',
+              pointRadius: 4,
+              pointHoverRadius: 7,
+              borderColor: 'rgba(74,144,217,0.4)',
+              borderWidth: 1
+            }
+          ]
+        },
+        options: {
+          ...commonOpts,
+          onClick: (event, elements) => {
+            if (!elements || elements.length === 0) return;
+            const dsIdx = elements[0].datasetIndex;
+            const ptIdx = elements[0].index;
+            let pointData;
+
+            if (dsIdx === 0) {
+              // Anomaly point clicked
+              pointData = anomalyData[ptIdx];
+              showDbscanDetailModal(pointData, true);
+            } else {
+              // Core point clicked
+              pointData = coreData[ptIdx];
+              showDbscanDetailModal(pointData, false);
+            }
+          },
+          scales: {
+            x: {
+              ...xGridObj,
+              min: 25,
+              max: 100,
+              title: {
+                display: true,
+                text: 'Attendance Rate (%)',
+                color: COLORS.text,
+                font: { size: 12, weight: 'bold' }
+              },
+              ticks: { callback: v => v + '%', color: COLORS.subtext }
+            },
+            y: {
+              ...yGridObj,
+              min: 15,
+              max: 100,
+              title: {
+                display: true,
+                text: 'Consistency Score',
+                color: COLORS.text,
+                font: { size: 12, weight: 'bold' }
+              },
+              grid: {
+                color: 'rgba(255,255,255,0.06)',
+                drawBorder: true
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              labels: {
+                color: COLORS.text,
+                font: { size: 11, weight: '500' },
+                padding: 15,
+                usePointStyle: true,
+                pointStyle: 'circle'
+              }
+            },
+            tooltip: {
+              enabled: true,
+              backgroundColor: 'rgba(15,20,40,0.95)',
+              titleColor: '#fff',
+              bodyColor: '#b0b9d0',
+              borderColor: 'rgba(255,255,255,0.15)',
+              borderWidth: 1,
+              cornerRadius: 8,
+              padding: 12,
+              displayColors: true,
+              callbacks: {
+                title: c => `Student: ${c[0].raw.studentId}`,
+                label: c => {
+                  const d = c.raw;
+                  const lines = [
+                    `Attendance: ${d.attendanceRate}%`,
+                    `Consistency: ${d.y}`,
+                    `Missed Days: ${d.missedDays}`
+                  ];
+                  if (d.anomalyReason) lines.push(`⚠️ ${d.anomalyReason}`);
+                  else lines.push('✓ Normal Pattern');
+                  return lines;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // --- DBSCAN Point Detail Modal ---
+    function showDbscanDetailModal(point, isAnomaly) {
+      const overlay = document.getElementById('dbscan-detail-modal');
+      const modal = document.getElementById('dbscan-modal-content');
+      const icon = document.getElementById('dbscan-modal-icon');
+      const title = document.getElementById('dbscan-modal-title');
+      const body = document.getElementById('dbscan-modal-body');
+
+      // Reset classes
+      modal.classList.remove('anomaly-modal', 'normal-modal');
+
+      if (isAnomaly) {
+        modal.classList.add('anomaly-modal');
+        icon.textContent = '⚠️';
+        title.textContent = `Anomaly: ${point.studentId}`;
+        title.style.color = '#ff6b6b';
+
+        // Build the alert action area based on whether already alerted
+        let alertActionHTML = '';
+        if (alertedStudents.has(point.studentId)) {
+          alertActionHTML = `
+            <div class="alert-already-sent">
+              <span style="font-size:1.2rem">⚠️</span>
+              <span>Alert already sent for this student.</span>
+            </div>`;
+        } else {
+          alertActionHTML = `
+            <div id="dbscan-alert-action">
+              <button id="triggerAlertBtn" class="trigger-alert-btn"
+                      data-student-id="${point.studentId}"
+                      data-attendance-rate="${point.attendanceRate}"
+                      data-anomaly-reason="${point.anomalyReason}">
+                🚨 Trigger Alert
+              </button>
+            </div>`;
+        }
+
+        body.innerHTML = `
+          <div class="dbscan-detail-row"><span class="dbscan-detail-label">Student ID</span><span class="dbscan-detail-value">${point.studentId}</span></div>
+          <div class="dbscan-detail-row"><span class="dbscan-detail-label">Attendance Rate</span><span class="dbscan-detail-value" style="color:#ff6b6b">${point.attendanceRate}%</span></div>
+          <div class="dbscan-detail-row"><span class="dbscan-detail-label">Consistency Score</span><span class="dbscan-detail-value">${point.y}</span></div>
+          <div class="dbscan-detail-row"><span class="dbscan-detail-label">Missed Days</span><span class="dbscan-detail-value" style="color:#ffaa6b">${point.missedDays}</span></div>
+          <div class="dbscan-anomaly-reason">
+            <span style="font-size:1.2rem">🔺</span>
+            <span>${point.anomalyReason}</span>
+          </div>
+          <div class="dbscan-sparkline">📉 Attendance fluctuation detected — pattern deviates significantly from peer cluster</div>
+          ${alertActionHTML}
+        `;
+
+        // Wire up the trigger button (only if it exists)
+        const triggerBtn = document.getElementById('triggerAlertBtn');
+        if (triggerBtn) {
+          triggerBtn.addEventListener('click', function() {
+            handleTriggerAlert(this);
+          });
+        }
+
+      } else {
+        modal.classList.add('normal-modal');
+        icon.textContent = '✓';
+        title.textContent = `Student: ${point.studentId}`;
+        title.style.color = '#6bb8ff';
+        body.innerHTML = `
+          <div class="dbscan-detail-row"><span class="dbscan-detail-label">Student ID</span><span class="dbscan-detail-value">${point.studentId}</span></div>
+          <div class="dbscan-detail-row"><span class="dbscan-detail-label">Attendance Rate</span><span class="dbscan-detail-value" style="color:#6bb8ff">${point.attendanceRate}%</span></div>
+          <div class="dbscan-detail-row"><span class="dbscan-detail-label">Consistency Score</span><span class="dbscan-detail-value">${point.y}</span></div>
+          <div class="dbscan-detail-row"><span class="dbscan-detail-label">Missed Days</span><span class="dbscan-detail-value">${point.missedDays}</span></div>
+          <div class="dbscan-normal-status">
+            <span style="font-size:1.2rem">✅</span>
+            <span>Normal Pattern — within expected behavioral cluster</span>
+          </div>
+        `;
+      }
+
+      overlay.classList.add('open');
+    }
+
+    // --- Trigger Alert Handler ---
+    function handleTriggerAlert(btn) {
+      const studentId = btn.dataset.studentId;
+      const attendanceRate = btn.dataset.attendanceRate;
+      const anomalyReason = btn.dataset.anomalyReason;
+      const timestamp = new Date().toLocaleString();
+
+      // Disable button immediately to prevent double-clicks
+      btn.disabled = true;
+      btn.textContent = '⏳ Sending...';
+
+      fetch('/api/trigger-alert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          student_id: studentId,
+          timestamp: timestamp,
+          attendance_rate: attendanceRate,
+          anomaly_reason: anomalyReason
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'success') {
+          // Mark as alerted
+          alertedStudents.add(studentId);
+
+          // Replace the button area with confirmation
+          const actionArea = document.getElementById('dbscan-alert-action');
+          if (actionArea) {
+            actionArea.innerHTML = `
+              <div class="alert-confirmed">
+                <h3>✅ Alert Triggered for ${studentId}</h3>
+                <p>📌 Student <strong>${studentId}</strong> has been placed on watch.</p>
+                <p>📩 <strong>Mentor Notified</strong></p>
+                <p>👨‍👩‍👧 <strong>Parents Notified</strong></p>
+                <p>👁️ <strong>Under Active Watch</strong></p>
+                <small>— Admin action logged at ${timestamp}</small>
+              </div>
+            `;
+          }
+
+          // Refresh chart to visually update the alerted dot
+          const anomalyCanvas = document.getElementById('chart-anomaly');
+          if (anomalyCanvas && anomalyCanvas._chartInstance) {
+            anomalyCanvas._chartInstance.update();
+          }
+        } else {
+          btn.disabled = false;
+          btn.textContent = '🚨 Trigger Alert';
+          alert('Failed to trigger alert: ' + (data.message || 'Unknown error'));
+        }
+      })
+      .catch(err => {
+        console.error('Alert trigger failed:', err);
+        btn.disabled = false;
+        btn.textContent = '🚨 Trigger Alert';
+        alert('Network error. Please try again.');
+      });
+    }
+
+    function closeDbscanModal(e, force = false) {
+      const overlay = document.getElementById('dbscan-detail-modal');
+      if (force || e.target.id === 'dbscan-detail-modal') {
+        overlay.classList.remove('open');
+      }
+    }
+
+    // --- 4. RENDER ALL CHARTS FUNCTION (called after data loads) ---
+    function renderAllCharts() {
+      console.log('🎨 renderAllCharts() called - building all 8 charts');
+      // Build all charts with real data
+      initChart('chart-overview', buildOverview);
+      initChart('chart-trend',    buildTrend);
+      initChart('chart-critical', buildCritical);
+      initChart('chart-atrisk',   buildAtRisk);
+      initChart('chart-watch',    buildWatch);
+      initChart('chart-stable',   buildStable);
+      initChart('chart-exemplary',buildExemplary);
+      initChart('chart-anomaly',  buildAnomaly);
+      
+      console.log('✓ All charts rendered successfully');
+    }
+
+    function initChart(id, builderFunc) {
+      const el = document.getElementById(id);
+      if(!el) {
+        console.warn('⚠️ Canvas element not found:', id);
+        return;
+      }
+      const ctx = el.getContext('2d');
+      if(!ctx) {
+        console.error('❌ Failed to get 2D context for:', id);
+        return;
+      }
+      
+      // Destroy any existing chart instance
+      if (el._chartInstance) {
+        el._chartInstance.destroy();
+        el._chartInstance = null;
+      }
+      
+      // Create new chart
+      el._chartInstance = builderFunc(ctx);
+      if (el._chartInstance) {
+        console.log(`  ✓ ${id} rendered`);
+      }
+    }
+
+    // Observer for card animations (separate from chart rendering)
+    document.addEventListener('DOMContentLoaded', () => {
+      const cards = document.querySelectorAll('.saas-card');
+      const obs = new IntersectionObserver(entries => {
+        entries.forEach(e => {
+          if(e.isIntersecting) {
+            e.target.classList.add('visible');
+            obs.unobserve(e.target);
+          }
+        });
+      }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+      cards.forEach(c => obs.observe(c));
+      
+      // Charts will be rendered after API data loads via renderAllCharts()
+    });
+
+    // Nav Scroll Spy
+    function scrollToId(id) { document.getElementById(id).scrollIntoView({behavior: 'smooth', block: 'start'}); }
+    
+    window.addEventListener('scroll', () => {
+      const dots = document.querySelectorAll('.nav-dot');
+      const sections = Array.from(dots).map(d => document.getElementById('sec-' + d.dataset.cat)).filter(Boolean);
+      let curr = 0;
+      sections.forEach((sec, i) => { if(sec.getBoundingClientRect().top <= 300) curr = i; });
+      dots.forEach(d => d.classList.remove('active'));
+      if(dots[curr]) dots[curr].classList.add('active');
+    }, {passive:true});
+
+    // --- 5. MODAL INTERACTION WITH DYNAMIC CONTENT ---
+    
+    // Helper: Get risk color
+    const getRiskColor = (risk) => {
+      const colorMap = { critical: COLORS.red, atrisk: COLORS.peach, watch: COLORS.yellow, stable: COLORS.blue, exemplary: COLORS.green };
+      return colorMap[risk] || COLORS.mauve;
+    };
+
+    // Helper: Get risk label text
+    const getRiskLabel = (risk) => {
+      const labels = { critical: '🔴 CRITICAL', atrisk: '⚠️ AT RISK', watch: '🟡 WATCH', stable: '✓ STABLE', exemplary: '⭐ EXEMPLARY' };
+      return labels[risk] || '❓ UNKNOWN';
+    };
+
+    // Main modal display function
+    function showInsightModal(chartType, dataPoint, filteredStudents) {
+      console.log('🎯 showInsightModal called with:');
+      console.log('  chartType:', chartType);
+      console.log('  filteredStudents:', filteredStudents?.length || 0);
+      console.log('  First student:', filteredStudents?.[0]);
+      
+      const modal = document.getElementById('insight-modal');
+      const modalDot = document.getElementById('modal-dot');
+      const modalHead = document.getElementById('modal-head');
+      const modalCountBadge = document.getElementById('modal-count-badge');
+      const modalDesc = document.getElementById('modal-desc');
+      const studentListContainer = document.getElementById('student-list-container');
+      const rootStyle = document.documentElement.style;
+
+      // Determine modal styling based on chart type
+      let title = 'Insight Details';
+      let description = 'Student insights based on clicked data.';
+      let riskColor = COLORS.blue;
+      let modalEmoji = '📊';
+
+      if(chartType === 'doughnut') {
+        title = `${modalEmoji} ${dataPoint} Category`;
+        description = `All students currently classified as ${dataPoint.toLowerCase()}.`;
+        const riskMap = { 'Critical': 'critical', 'At Risk': 'atrisk', 'Watch Zone': 'watch', 'Stable': 'stable', 'Exemplary': 'exemplary', 'Unusual': 'anomaly' };
+        riskColor = getRiskColor(riskMap[dataPoint] || 'stable');
+      } else if(chartType === 'line-critical') {
+        modalEmoji = '📉'; title = `${modalEmoji} Critical Trajectory`; 
+        description = `Students in critical decline. Current week score compared to 8-week average.`;
+        riskColor = COLORS.red;
+      } else if(chartType === 'line-trend') {
+        modalEmoji = '📈'; title = `${modalEmoji} Weekly Trend`; 
+        description = `Students showing significant attendance changes this week.`;
+        riskColor = COLORS.blue;
+      } else if(chartType === 'bar-atrisk') {
+        modalEmoji = '⚠️'; title = `${modalEmoji} At-Risk Borderline`; 
+        description = `Students between 60-74% attendance, ranked by severity.`;
+        riskColor = COLORS.peach;
+      } else if(chartType === 'bar-watch') {
+        modalEmoji = '🟡'; title = `${modalEmoji} Watch Zone Proximity`; 
+        description = `Students in the 75-79% range, nearing intervention threshold.`;
+        riskColor = COLORS.yellow;
+      } else if(chartType === 'anomaly') {
+        modalEmoji = '🔴'; title = `${modalEmoji} Anomaly Detected`; 
+        description = `DBSCAN-flagged students with erratic/anomalous attendance patterns.`;
+        riskColor = COLORS.red;
+      } else if(chartType === 'normal') {
+        modalEmoji = '✓'; title = `${modalEmoji} Normal Behavior`; 
+        description = `Students with stable patterns matching expected behavioral clusters.`;
+        riskColor = COLORS.blue;
+      } else if(chartType === 'histogram') {
+        modalEmoji = '📊'; title = `${modalEmoji} Distribution Segment`; 
+        description = `Students in the selected attendance range.`;
+        riskColor = COLORS.blue;
+      }
+
+      // Set modal styling
+      modalDot.style.backgroundColor = riskColor;
+      modalDot.style.boxShadow = `0 0 12px ${riskColor}`;
+      modalHead.textContent = title;
+      modalDesc.textContent = description;
+      modalCountBadge.textContent = `${filteredStudents.length} student${filteredStudents.length !== 1 ? 's' : ''}`;
+      rootStyle.setProperty('--modal-color', riskColor);
+
+      // For anomaly modals, add summary and sort by change
+      let processedStudents = filteredStudents;
+      let summaryHTML = '';
+      
+      console.log('🔄 Processing modal - chartType:', chartType);
+      console.log('  filteredStudents count:', filteredStudents.length);
+      console.log('  Checking for anomaly condition:', chartType === 'anomaly', filteredStudents.some(s => s.peakScore));
+      
+      if(chartType === 'anomaly' && filteredStudents.some(s => s.peakScore)) {
+        // Sort anomaly students by most drastic change (largest negative first)
+        processedStudents = [...filteredStudents].sort((a, b) => 
+          (a.currentScore - a.peakScore) - (b.currentScore - b.peakScore)
+        );
+        
+        console.log('  📊 ANOMALY MODAL: sorted', processedStudents.length, 'students');
+        processedStudents.slice(0,3).forEach(s => {
+          const change = s.currentScore - s.peakScore;
+          const pct = ((change / s.peakScore) * 100).toFixed(1);
+          console.log('    -', s.id, 'change:', change, '(' + pct + '%)');
+        });
+        
+        // Calculate average drop
+        const avgChange = (processedStudents.reduce((sum, s) => 
+          sum + ((s.currentScore - s.peakScore) / s.peakScore * 100), 0) / processedStudents.length).toFixed(1);
+        
+        summaryHTML = `<div style="color:#ff4757; font-size:13px; margin-bottom:12px; padding:8px; 
+                           background:rgba(255,71,87,0.1); border-radius:6px;">
+          ⚠️ Avg attendance drop: ${avgChange}% across ${processedStudents.length} flagged students
+        </div>`;
+      }
+
+      // Build student list
+      let studentListHTML = summaryHTML;
+      processedStudents.slice(0, 20).forEach(student => {
+        if(student.peakScore && student.currentScore !== undefined && student.currentScore !== null) {
+          // Anomaly student with peak and current scores - detailed pattern display
+          const change = student.currentScore - student.peakScore;
+          const changePct = ((change / student.peakScore) * 100).toFixed(1);
+          const changeColor = change < 0 ? '#ff4757' : '#0bff88';
+          const changeArrow = change < 0 ? '▼' : '▲';
+          const severity = changePct <= -30 ? '🔴 CRITICAL' : changePct <= -15 ? '🟡 MODERATE' : '🟠 SLIGHT';
+          const studentId = student.id || student.name || 'Unknown';
+          
+          studentListHTML += `
+            <div style="display:flex; align-items:center; justify-content:space-between;
+                        padding: 10px 12px; margin-bottom:6px; border-radius:8px;
+                        background: rgba(255,255,255,0.04); border-left: 3px solid ${changeColor};">
+                <span style="color:#fff; font-weight:700; min-width:60px; overflow:hidden; text-overflow:ellipsis;">${studentId}</span>
+                <span style="color:#b0b9d0; font-size:12px;">${student.peakScore}% → ${student.currentScore}%</span>
+                <span style="color:${changeColor}; font-weight:700; font-size:13px;">
+                    ${changeArrow} ${changePct}%
+                </span>
+                <span style="background:${changeColor}22; color:${changeColor}; 
+                             padding:2px 8px; border-radius:4px; font-size:11px; white-space:nowrap;">
+                    ${severity}
+                </span>
+            </div>`;
+        } else {
+          // Regular non-anomaly student - with fallbacks
+          const score = getStudentScore(student, 0);
+          const scoreStr = score > 0 ? `${Math.round(score)}%` : 'N/A';
+          const trend = student.trend || '→';
+          const trendColor = trend === '↓' ? COLORS.red : trend === '↑' ? COLORS.green : COLORS.yellow;
+          const risk = normalizeRisk(student.risk || 'stable');
+          const riskLabel = getRiskLabel(risk);
+          const statusColor = getRiskColor(risk);
+          const studentId = student.id || student.name || 'Unknown';
+          
+          studentListHTML += `
+            <div class="student-row ${risk}">
+              <div class="sr-id">${studentId}</div>
+              <div class="sr-score">
+                <span>Score: ${scoreStr}</span>
+                <span style="color:${trendColor}; font-weight:700;">${trend}</span>
+              </div>
+              <span class="sr-status" style="background:${statusColor}26; color:${statusColor}; border:1px solid ${statusColor}40;">${riskLabel}</span>
+            </div>
+          `;
+        }
+      });
+
+      if(filteredStudents.length > 20) {
+        studentListHTML += `
+          <div class="student-row" style="justify-content:center; color:var(--subtext); font-style:italic; padding:12px;">
+            ... and ${filteredStudents.length - 20} more
+          </div>
+        `;
+      }
+
+      studentListContainer.innerHTML = studentListHTML || '<div style="padding:1rem; text-align:center; color:var(--subtext);">No matching students</div>';
+
+      // Store context for action buttons
+      window._lastModalContext = { chartType, dataPoint, students: filteredStudents };
+
+      modal.classList.add('open');
+    }
+
+    function closeModal(e, force=false) {
+      const modal = document.getElementById('insight-modal');
+      if(force || e.target.id === 'insight-modal') {
+        modal.classList.remove('open');
+      }
+    }
+
+    function showFullReport() {
+      alert(`📋 Full report for ${window._lastModalContext.students.length} students would open here.\n\nContext: ${window._lastModalContext.chartType} - ${window._lastModalContext.dataPoint}`);
+    }
+
+    function notifyMentors() {
+      const count = window._lastModalContext?.students.length || 0;
+      alert(`✅ Mentor notification sent!\n\n${count} mentor(s) will be notified about these ${count} student(s) requiring attention.`);
+    }
+  </script>
+</body>
+</html>

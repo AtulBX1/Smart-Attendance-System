@@ -130,15 +130,35 @@
         .bar-fill { height: 100%; transition: width 0.5s ease-out; background: var(--primary); }
         .action-item { padding: 12px 16px; background: #16102b; border-left: 4px solid var(--primary); border-radius: 4px; margin-bottom: 12px; font-size: 0.9rem; color: var(--primary); font-weight: 600; }
         .popup-btn { padding: 12px 24px; border-radius: 6px; font-size: 0.9rem; font-weight: 700; cursor: pointer; border: none; transition: filter 0.2s ease; } .popup-btn:hover { filter: brightness(1.2); }
-        .btn-email { background: var(--secondary); color: #fff; }
-        .btn-meeting { background: var(--primary); color: #fff; }
-        
+        .popup-btn.btn-meeting { background: #121212; border: 1px solid rgba(255,255,255,0.1); color: #fff; }
+        .popup-btn.btn-meeting:hover { background: var(--primary); border-color: var(--primary); }
+
+        .popup-btn.btn-enquiry-modal {
+            background-color: #f38ba8;
+            color: #1e1e2e;
+            font-weight: 600;
+            padding: 10px 20px;
+        }
+        .popup-btn.btn-enquiry-modal:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        .popup-btn.btn-enquiry-modal.enquiry-sent {
+            background-color: #313244 !important;
+            color: #6c7086 !important;
+            cursor: not-allowed !important;
+            transform: none !important;
+            opacity: 1 !important;
+        }
+
         .email-compose { display: none; margin-top: 1.5rem; padding: 2rem; background: #0a0a0a; border-radius: 8px; border: 1px solid var(--border); animation: fadeIn 0.2s ease; }
         .email-compose.active { display: block; }
         .email-compose textarea { width: 100%; height: 120px; background: #000; color: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 16px; font-size: 0.95rem; resize: vertical; outline: none; margin-bottom: 16px; font-weight: 500; transition: border 0.2s ease; }
         .email-compose textarea:focus { border-color: var(--primary); }
         
         .alert { padding: 1.25rem 1.5rem; border-radius: 8px; margin-bottom: 2rem; font-weight: 700; background: #0a3d1b; border: 1px solid #10b981; color: var(--green); display: flex; align-items: center; gap: 12px; }
+
+        .chart-card { background: #1e1e2e; border: 1px solid #45475a; border-radius: 10px; padding: 16px; margin-bottom: 16px; height: 220px; position: relative; }
 
         /* Mint Light Mode */
         html.light-mode body {
@@ -696,6 +716,9 @@
             html += `
                 <div style="display:flex; gap:10px; margin-top:2rem;">
                     <button class="popup-btn btn-email" style="white-space:nowrap;" onclick="document.getElementById('email-compose-area').classList.toggle('active')">Send Report via Email</button>
+                    ${data.overall_pct < 75 ? `
+                        <button id="modal-enquiry-btn" class="popup-btn btn-enquiry-modal" onclick="triggerEnquiryModal('${data.student_id}', this)">Enquiry</button>
+                    ` : ''}
                     <div style="display:flex; align-items:center; background:#121212; border:1px solid rgba(255,255,255,0.1); border-radius:6px; flex:1; transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;" onmouseover="this.style.background='#1f1f1f'" onmouseout="this.style.background='#121212'">
                         <span style="padding-left:12px; color:#9ca3af; font-size:1.1rem; line-height:1;">📅</span>
                         <input type="text" placeholder="Date/Time (e.g. Monday 2PM)" style="background:transparent; border:none; color:#e5e7eb; padding:10px 14px; font-size:0.9rem; width:100%; outline:none;" onfocus="this.parentElement.style.borderColor='var(--primary)'; this.parentElement.style.boxShadow='0 0 0 1px var(--primary)'" onblur="this.parentElement.style.borderColor='rgba(255,255,255,0.1)'; this.parentElement.style.boxShadow='none'">
@@ -706,8 +729,68 @@
                     <textarea id="email-message" placeholder="Draft notice to student / parent..."></textarea>
                     <button class="popup-btn btn-email" style="float:right;" onclick="sendStudentEmail('${data.student_id}', '${data.student_email||''}')">Dispatch</button>
                 </div>
+                
+                <div id="analytics-section-container" style="margin-top: 2rem;">
+                    <div style="font-size:0.8rem; font-weight:600; color:#b4befe; text-transform:uppercase; letter-spacing:1px; margin-bottom:1rem; border-top:1px solid #45475a; padding-top:1rem;">Student Analytics</div>
+                    <div id="analytics-charts" style="display:flex; flex-direction:column; gap:16px;">
+                        <div style="text-align:center; color:#6c7086; font-size:0.8rem; padding:2rem;">Fetching analytics data...</div>
+                    </div>
+                </div>
             `;
             document.getElementById('popup-body').innerHTML = html;
+
+            // Check if enquiry already sent
+            if (data.overall_pct < 75) {
+                fetch(`/mentor/check_enquiry_status?student_id=${data.student_id}`)
+                    .then(res => res.json())
+                    .then(status => {
+                        const btn = document.getElementById('modal-enquiry-btn');
+                        if (status.already_sent && btn) {
+                            btn.innerText = 'Enquiry Sent ✓';
+                            btn.classList.add('enquiry-sent');
+                            btn.disabled = true;
+                        }
+                    });
+            }
+
+            // Fetch and render student analytics
+            fetch(`/mentor/student_analytics/${data.student_id}`)
+                .then(res => res.json())
+                .then(analyticsData => {
+                    if (analyticsData.error) {
+                        document.getElementById('analytics-charts').innerHTML = `<div style="color:var(--red); padding:1rem;">Error: ${analyticsData.error}</div>`;
+                        return;
+                    }
+                    renderAnalyticsCharts(analyticsData);
+                })
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById('analytics-charts').innerHTML = `<div style="color:var(--red); padding:1rem;">Failed to load analytics.</div>`;
+                });
+        }
+
+        function triggerEnquiryModal(studentId, btn) {
+            if (btn.classList.contains('enquiry-sent')) return;
+
+            fetch('/mentor/trigger_enquiry', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ student_id: studentId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    btn.innerText = 'Enquiry Sent ✓';
+                    btn.classList.add('enquiry-sent');
+                    btn.disabled = true;
+                } else {
+                    alert('Error: ' + (data.message || 'Could not trigger enquiry'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred during the enquiry trigger.');
+            });
         }
 
         function scheduleCounselling(sid, meetingTime) {
@@ -728,6 +811,195 @@
                 body: JSON.stringify({ student_id: sid, message: msg, email: email })
             }).then(res => res.json()).then(data => {
                 alert(data.message); document.getElementById('email-compose-area').classList.remove('active');
+            });
+        }
+
+        function renderAnalyticsCharts(data) {
+            const container = document.getElementById('analytics-charts');
+            
+            let notifRows = data.parent_notifications && data.parent_notifications.length > 0 
+                ? data.parent_notifications.map(n => `
+                    <tr style="border-bottom: 1px solid #45475a;">
+                        <td style="padding: 10px 12px; color: #cdd6f4;">${n.date}</td>
+                        <td style="padding: 10px 12px; color: #cdd6f4;">${n.type}</td>
+                        <td style="padding: 10px 12px; color: #6c7086; text-align: right;">${n.status}</td>
+                    </tr>
+                `).join('')
+                : `<tr><td colspan="3" style="padding: 16px; text-align: center; color: #6c7086;">No notifications sent yet</td></tr>`;
+
+            container.innerHTML = `
+                <div class="chart-card"><canvas id="chart-attendance-time"></canvas></div>
+                <div class="chart-card"><canvas id="chart-subject-breakdown"></canvas></div>
+                <div class="chart-card"><canvas id="chart-risk-trend"></canvas></div>
+                <div class="chart-card"><canvas id="chart-absence-streak"></canvas></div>
+                <div class="chart-card"><canvas id="chart-class-avg"></canvas></div>
+                <div class="chart-card" style="overflow-y: auto;">
+                    <div style="font-size: 0.85rem; font-weight: 600; color: #cdd6f4; margin-bottom: 12px; text-align: center;">Parent Notification History</div>
+                    <table style="width: 100%; border-collapse: collapse; background: #181825; text-align: left; font-size: 0.8rem; border: none; margin: 0; border-radius: 6px; overflow: hidden;">
+                        <thead style="background: #313244;">
+                            <tr>
+                                <th style="padding: 8px 12px; font-weight: 600; color: #cdd6f4; border: none;">Date</th>
+                                <th style="padding: 8px 12px; font-weight: 600; color: #cdd6f4; border: none;">Type</th>
+                                <th style="padding: 8px 12px; font-weight: 600; color: #cdd6f4; border: none; text-align: right;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${notifRows}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            Chart.defaults.color = '#cdd6f4';
+            Chart.defaults.scale.grid.color = '#313244';
+            Chart.defaults.plugins.tooltip.backgroundColor = '#313244';
+            Chart.defaults.plugins.tooltip.titleColor = '#cdd6f4';
+            Chart.defaults.plugins.tooltip.bodyColor = '#cdd6f4';
+
+            const commonOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } };
+
+            // 1. Attendance % Over Time
+            new Chart(document.getElementById('chart-attendance-time'), {
+                type: 'line',
+                data: {
+                    labels: data.attendance_over_time.map(d => d.week),
+                    datasets: [
+                        {
+                            label: 'Attendance %',
+                            data: data.attendance_over_time.map(d => d.percentage),
+                            borderColor: '#a6e3a1',
+                            backgroundColor: 'rgba(166, 227, 161, 0.15)',
+                            fill: true,
+                            tension: 0.3,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Minimum Threshold',
+                            data: data.attendance_over_time.map(d => 75),
+                            borderColor: '#f38ba8',
+                            borderDash: [5, 5],
+                            borderWidth: 1,
+                            pointRadius: 0,
+                            fill: false,
+                            yAxisID: 'y'
+                        }
+                    ]
+                },
+                options: {
+                    ...commonOptions,
+                    plugins: { 
+                        legend: { display: false },
+                        title: { display: true, text: 'Attendance % Over Time', color: '#cdd6f4', font: {size: 13, weight: '600'} }
+                    },
+                    scales: { y: { min: 0, max: 100, grid: { color: '#313244' } } }
+                }
+            });
+
+            // 2. Subject-wise Attendance Breakdown
+            new Chart(document.getElementById('chart-subject-breakdown'), {
+                type: 'bar',
+                data: {
+                    labels: data.subject_breakdown.map(d => d.subject),
+                    datasets: [{
+                        label: 'Attendance %',
+                        data: data.subject_breakdown.map(d => d.percentage),
+                        backgroundColor: data.subject_breakdown.map(d => d.percentage >= 75 ? '#a6e3a1' : '#f38ba8'),
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: 'Subject-wise Attendance Breakdown', color: '#cdd6f4', font: {size: 13, weight: '600'} }
+                    },
+                    scales: { x: { min: 0, max: 100, grid: { color: '#313244' } }, y: { grid: { display: false } } }
+                }
+            });
+
+            // 3. Risk Score Trend
+            new Chart(document.getElementById('chart-risk-trend'), {
+                type: 'line',
+                data: {
+                    labels: data.risk_trend.map(d => d.week),
+                    datasets: [{
+                        label: 'Risk Score',
+                        data: data.risk_trend.map(d => d.score),
+                        borderColor: '#f38ba8',
+                        tension: 0.4,
+                        fill: false
+                    }]
+                },
+                options: {
+                    ...commonOptions,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: 'Risk Score Trend', color: '#cdd6f4', font: {size: 13, weight: '600'} },
+                        subtitle: { display: true, text: 'Higher = More Risk', color: '#6c7086' }
+                    },
+                    scales: { y: { min: 0, max: 1.0, grid: { color: '#313244' } } }
+                }
+            });
+
+            // 4. Absence Streak History
+            new Chart(document.getElementById('chart-absence-streak'), {
+                type: 'bar',
+                data: {
+                    labels: data.absence_streak_history.map(d => d.date),
+                    datasets: [{
+                        label: 'Streak Length',
+                        data: data.absence_streak_history.map(d => d.streak),
+                        backgroundColor: '#fab387',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    ...commonOptions,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: 'Absence Streak History', color: '#cdd6f4', font: {size: 13, weight: '600'} }
+                    },
+                    scales: { y: { beginAtZero: true, grid: { color: '#313244' }, ticks: { stepSize: 1 } }, x: { grid: { display: false } } }
+                }
+            });
+
+            // 5. Comparison with Class Average
+            const allWeeks = [...new Set([...data.attendance_over_time.map(d=>d.week), ...data.class_average.map(d=>d.week)])].sort();
+            
+            const stdData = allWeeks.map(w => { const f=data.class_average.find(x=>x.week===w); return f ? f.student : null; });
+            const avgData = allWeeks.map(w => { const f=data.class_average.find(x=>x.week===w); return f ? f.class_avg : null; });
+
+            new Chart(document.getElementById('chart-class-avg'), {
+                type: 'line',
+                data: {
+                    labels: allWeeks,
+                    datasets: [
+                        {
+                            label: 'Student',
+                            data: stdData,
+                            borderColor: '#89b4fa',
+                            tension: 0.3,
+                            fill: false
+                        },
+                        {
+                            label: 'Class Average',
+                            data: avgData,
+                            borderColor: '#a6e3a1',
+                            borderDash: [5, 5],
+                            tension: 0.3,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true, position: 'top', labels: { color: '#cdd6f4' } },
+                        title: { display: true, text: 'Comparison with Class Average', color: '#cdd6f4', font: {size: 13, weight: '600'} }
+                    },
+                    scales: { y: { min: 0, max: 100, grid: { color: '#313244' } } }
+                }
             });
         }
     </script>

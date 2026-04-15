@@ -1,0 +1,10 @@
+[
+  {
+    "student_id": "S0130",
+    "timestamp": "4/16/2026, 1:11:32 AM",
+    "attendance_rate": "43.8",
+    "anomaly_reason": "Irregular pattern detected",
+    "status": "under_watch",
+    "triggered_by": "admin"
+  }
+]

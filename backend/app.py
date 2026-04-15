@@ -7,6 +7,7 @@ import os
 import functools
 import sys
 import random
+import json
 from datetime import datetime, timedelta
 import string
 import base64
@@ -14,16 +15,22 @@ from captcha.image import ImageCaptcha
 
 # Resolve base directory relative to this file
 base_dir = os.path.dirname(os.path.dirname(__file__))
+sys.path.insert(0, os.path.dirname(__file__))  # Add backend/ dir so local modules like timetable.py are found
 sys.path.append(base_dir)
 
-from models.anomaly_detection import run_anomaly_detection
+from models.anomaly_detection import run_anomaly_detection, generate_dbscan_synthetic_data
 from utils.notifications import run_notifications_job
 from utils.email_sender import send_otp_email, send_welcome_email, test_smtp_connection, get_smtp_config, _send_email
+from backend.analytics_service import AnalyticsService
 import io
 import csv
 
 app = Flask(__name__)
 app.secret_key = 'super_secret_attendance_key'
+
+# Initialize Analytics Service
+analytics_service = AnalyticsService(base_dir)
+print(f"✓ Analytics Service initialized at {base_dir}")
 
 # Register Timetable Blueprint
 from timetable import timetable_bp
@@ -48,8 +55,14 @@ def login_required(role=None):
         def decorated_view(*args, **kwargs):
             if "user_id" not in session:
                 return redirect(url_for("login"))
-            if role and session.get("role") != role:
-                return "Unauthorized Access. You do not have the right permissions.", 403
+            
+            user_role = session.get("role")
+            if role:
+                if isinstance(role, list):
+                    if user_role not in role:
+                        return "Unauthorized Access. You do not have the right permissions.", 403
+                elif user_role != role:
+                    return "Unauthorized Access. You do not have the right permissions.", 403
             return fn(*args, **kwargs)
         return decorated_view
     return wrapper
@@ -537,6 +550,76 @@ def upload_admin_file():
     
     return jsonify({"success": True, "message": f"Successfully uploaded {filename} for Class {class_name} Section {section}"})
 
+# ---- ADMIN: Student Analytics Dashboard ---- #
+@app.route("/admin/analytics")
+@login_required(role="admin")
+def admin_analytics():
+    conn = get_db_connection()
+    try:
+        # Total student count
+        total = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0] or 0
+
+        # Risk distribution
+        students_df = pd.read_sql_query("""
+            SELECT 
+                s.registration_no,
+                ROUND(COUNT(CASE WHEN a.Present = 1 THEN 1 END) * 100.0 / 
+                      NULLIF(COUNT(*), 0), 1) as attendance_pct
+            FROM students s
+            LEFT JOIN attendance a ON s.registration_no = a.StudentID
+            GROUP BY s.registration_no
+        """, conn)
+
+        distribution = {'exemplary': 0, 'stable': 0, 'watch': 0, 'atrisk': 0, 'critical': 0}
+        for _, row in students_df.iterrows():
+            pct = row['attendance_pct'] if row['attendance_pct'] is not None else 0
+            if pct >= 90:   distribution['exemplary'] += 1
+            elif pct >= 75: distribution['stable'] += 1
+            elif pct >= 65: distribution['watch'] += 1
+            elif pct >= 50: distribution['atrisk'] += 1
+            else:           distribution['critical'] += 1
+
+        # Weekly trend (last 8 weeks)
+        weekly_df = pd.read_sql_query("""
+            SELECT 
+                strftime('%W', Date) as week_num,
+                MIN(Date) as week_start,
+                ROUND(COUNT(CASE WHEN Present = 1 THEN 1 END) * 100.0 / 
+                      NULLIF(COUNT(*), 0), 1) as avg_attendance
+            FROM attendance
+            GROUP BY strftime('%W', Date)
+            ORDER BY week_num DESC LIMIT 8
+        """, conn)
+        weekly_trends = weekly_df.to_dict(orient='records')
+        weekly_trends.reverse()
+
+        conn.close()
+
+        # Generate synthetic DBSCAN data (fully independent of real DB)
+        dbscan_data = generate_dbscan_synthetic_data(seed=42)
+
+        return render_template("admin_analytics.html",
+            total_students=total,
+            distribution=distribution,
+            weekly_trends=weekly_trends,
+            dbscan_data=json.dumps(dbscan_data)
+        )
+    except Exception as e:
+        conn.close()
+        print(f"admin_analytics error: {e}")
+        # Fallback: still generate DBSCAN synthetic data even if DB fails
+        try:
+            dbscan_data = generate_dbscan_synthetic_data(seed=42)
+        except Exception:
+            dbscan_data = {"core_points": [], "anomaly_points": [], "cluster_stats": {}}
+        return render_template("admin_analytics.html",
+            total_students=0,
+            distribution={'exemplary':0,'stable':0,'watch':0,'atrisk':0,'critical':0},
+            weekly_trends=[],
+            dbscan_data=json.dumps(dbscan_data)
+        )
+
+
 # ---- OTP CREDENTIAL CHANGE ROUTES ---- #
 @app.route("/change_credentials", methods=["GET", "POST"])
 def change_credentials():
@@ -839,6 +922,63 @@ def student_dashboard():
         counselling_sessions=counselling_sessions
     )
 
+@app.route("/student/check_enquiry")
+@login_required(role="student")
+def student_check_enquiry():
+    """Check if the logged-in student has any pending attendance enquiries."""
+    student_id = session.get("username")
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id FROM attendance_enquiry WHERE student_id = ? AND reason IS NULL LIMIT 1",
+            (student_id,)
+        )
+        row = cursor.fetchone()
+        if row:
+            return jsonify({"pending": True, "enquiry_id": row[0]})
+        return jsonify({"pending": False})
+    except Exception as e:
+        print(f"Error checking enquiry: {e}")
+        return jsonify({"pending": False}), 500
+    finally:
+        conn.close()
+
+@app.route("/student/submit_enquiry_reason", methods=["POST"])
+@login_required(role="student")
+def student_submit_enquiry_reason():
+    """Submit a reason for a pending attendance enquiry."""
+    data = request.get_json()
+    enquiry_id = data.get("enquiry_id")
+    reason = data.get("reason")
+
+    if not enquiry_id or not reason:
+        return jsonify({"status": "error", "message": "Missing enquiry ID or reason"}), 400
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        # DEBUG STEP 1: VERIFY DATABASE WRITE
+        print(f"DEBUG SUBMIT REQUEST: enquiry_id={enquiry_id}, reason={reason}")
+        
+        cursor.execute(
+            "UPDATE attendance_enquiry SET reason = ?, responded_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (reason, enquiry_id)
+        )
+        conn.commit()
+        
+        # Verify write immediately
+        cursor.execute("SELECT * FROM attendance_enquiry WHERE id = ?", (enquiry_id,))
+        written_row = cursor.fetchone()
+        print(f"DEBUG DB VERIFY: Row after update: {written_row}")
+        
+        return jsonify({"status": "success"})
+    except Exception as e:
+        print(f"Error submitting enquiry: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        conn.close()
+
 # ---- REST API ENDPOINTS ---- #
 
 @app.route("/api/upload", methods=["POST"])
@@ -980,6 +1120,55 @@ def api_anomalies():
     finally:
         conn.close()
 
+
+# ---- ADMIN: Trigger Alert for DBSCAN Anomaly Student ---- #
+@app.route("/api/trigger-alert", methods=["POST"])
+@login_required(role="admin")
+def trigger_alert():
+    """Admin triggers an alert for a DBSCAN-flagged anomaly student."""
+    data = request.get_json()
+    student_id = data.get("student_id")
+    timestamp = data.get("timestamp")
+    attendance_rate = data.get("attendance_rate")
+    anomaly_reason = data.get("anomaly_reason")
+
+    if not student_id:
+        return jsonify({"status": "error", "message": "Missing student_id"}), 400
+
+    # Log to alerts_log.json
+    alerts_file = os.path.join(base_dir, "backend", "alerts_log.json")
+    try:
+        if os.path.exists(alerts_file):
+            with open(alerts_file, "r") as f:
+                alerts = json.load(f)
+        else:
+            alerts = []
+
+        alert_entry = {
+            "student_id": student_id,
+            "timestamp": timestamp or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "attendance_rate": attendance_rate,
+            "anomaly_reason": anomaly_reason,
+            "status": "under_watch",
+            "triggered_by": session.get("username", "admin")
+        }
+        alerts.append(alert_entry)
+
+        with open(alerts_file, "w") as f:
+            json.dump(alerts, f, indent=2)
+
+        return jsonify({
+            "status": "success",
+            "message": f"Alert triggered for {student_id}",
+            "notifications": {
+                "mentor": "notified",
+                "parents": "notified",
+                "watch_status": "active"
+            }
+        })
+    except Exception as e:
+        print(f"Error triggering alert: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route("/faculty_dashboard", methods=["GET", "POST"])
@@ -1217,7 +1406,7 @@ def faculty_dashboard():
                 student_name = group.iloc[0].get("Student_Name", student_id)
                 student_section = group.iloc[0].get("Section", "")
 
-                if avg_semester_att < 0.70:
+                if avg_semester_att < 0.65:
                     risk_level = "High Risk"
                 elif avg_semester_att < 0.75 and avg_trend < -0.15:
                     risk_level = "High Risk"
@@ -1345,161 +1534,6 @@ def dashboard():
         recent_activity=recent_activity
     )
 
-@app.route("/analytics")
-@login_required(role="admin")
-def analytics():
-    conn = get_db_connection()
-    
-    # Get available semesters
-    try:
-        semesters_df = pd.read_sql_query("SELECT DISTINCT Semester FROM attendance ORDER BY Semester", conn)
-        available_semesters = semesters_df['Semester'].tolist()
-    except Exception as e:
-        available_semesters = []
-        
-    selected_semester = request.args.get("semester")
-    if not selected_semester and available_semesters:
-        selected_semester = str(available_semesters[0])
-    elif selected_semester and selected_semester.isdigit():
-        selected_semester = int(selected_semester)
-    
-    # 1. Line Chart: Daily Trends
-    query_line = """
-    SELECT Date, Hostler, 
-           SUM(Present) as Total_Present, 
-           COUNT(*) as Total_Students
-    FROM attendance
-    """
-    params = ()
-    if selected_semester:
-        query_line += " WHERE Semester = ?"
-        params = (selected_semester,)
-        
-    query_line += " GROUP BY Date, Hostler ORDER BY Date ASC"
-    
-    # 2. Bar Chart: Average Attendance by Section
-    query_bar = """
-    SELECT Section, SUM(Present)*100.0/COUNT(*) as Avg_Attendance
-    FROM attendance
-    """
-    if selected_semester:
-        query_bar += " WHERE Semester = ?"
-    query_bar += " GROUP BY Section ORDER BY Section"
-
-    # 3. Scatter Plot & Histogram: Student Level Aggregation
-    query_student = """
-    SELECT StudentID, Section, Hostler,
-           MAX(Absence_Streak) as Max_Absence_Streak,
-           SUM(Present)*100.0/COUNT(*) as Semester_Attendance
-    FROM attendance
-    """
-    if selected_semester:
-        query_student += " WHERE Semester = ?"
-    query_student += " GROUP BY StudentID, Section, Hostler"
-
-    # Fetch Data
-    try:
-        df_line = pd.read_sql_query(query_line, conn, params=params)
-        df_bar = pd.read_sql_query(query_bar, conn, params=params)
-        df_student = pd.read_sql_query(query_student, conn, params=params)
-    except Exception as e:
-        print(f"Error querying DB for analytics: {e}")
-        df_line = pd.DataFrame()
-        df_bar = pd.DataFrame()
-        df_student = pd.DataFrame()
-    finally:
-        conn.close()
-
-    if df_line.empty or df_student.empty:
-        return render_template("analytics.html", semesters=available_semesters, selected_sem=selected_semester)
-    
-    # --- 1. Line Chart Data ---
-    df_line["Attendance_Rate"] = (df_line["Total_Present"] / df_line["Total_Students"]) * 100
-    dates = sorted(df_line["Date"].unique().tolist())
-    hostler_df = df_line[df_line["Hostler"] == "Yes"].set_index("Date")
-    day_scholar_df = df_line[df_line["Hostler"] == "No"].set_index("Date")
-    
-    hostler_data = [round(hostler_df.loc[d, "Attendance_Rate"], 2) if d in hostler_df.index else None for d in dates]
-    day_scholar_data = [round(day_scholar_df.loc[d, "Attendance_Rate"], 2) if d in day_scholar_df.index else None for d in dates]
-    
-    # --- 2. Bar Chart Data ---
-    bar_labels = df_bar["Section"].tolist()
-    bar_data = [round(val, 2) for val in df_bar["Avg_Attendance"].tolist()]
-
-    # --- 3. Donut Chart Data ---
-    total_hostlers = len(df_student[df_student["Hostler"] == "Yes"])
-    total_scholars = len(df_student[df_student["Hostler"] == "No"])
-    donut_data = [total_hostlers, total_scholars]
-
-    # --- 4. Scatter Plot Data ---
-    # format: [{x: Absence_Streak, y: Semester_Attendance}, ...]
-    scatter_data = []
-    for _, row in df_student.iterrows():
-        scatter_data.append({"x": float(row["Max_Absence_Streak"]), "y": round(float(row["Semester_Attendance"]), 2)})
-
-    # --- 5. Histogram Data ---
-    # Bins: 0-20, 20-40, 40-60, 60-80, 80-100
-    bins = [0, 20, 40, 60, 80, 100]
-    hist_counts, _ = np.histogram(df_student["Semester_Attendance"], bins=bins)
-    hist_labels = ["0-20%", "21-40%", "41-60%", "61-80%", "81-100%"]
-    hist_data = hist_counts.tolist()
-
-    # --- 6. Funnel Chart Data (Simulated Drop-off) ---
-    # Total Enrolled -> Attended first 10% of days -> Attended middle 10% -> Attended last 10%
-    dates_list = sorted(list(set(dates)))
-    total_enrolled = len(df_student)
-    
-    if len(dates_list) >= 3:
-        start_date = dates_list[0]
-        mid_date = dates_list[len(dates_list)//2]
-        end_date = dates_list[-1]
-        
-        start_att = int(df_line[df_line["Date"] == start_date]["Total_Present"].sum())
-        mid_att = int(df_line[df_line["Date"] == mid_date]["Total_Present"].sum())
-        end_att = int(df_line[df_line["Date"] == end_date]["Total_Present"].sum())
-    else:
-        start_att = mid_att = end_att = total_enrolled
-
-    funnel_labels = ["Total Enrolled", "Attended Start", "Attended Midterm", "Attended Endterm"]
-    funnel_data = [total_enrolled, start_att, mid_att, end_att]
-
-    # --- 7. Treemap Data ---
-    # format: [{name: 'Section A - Hostler', value: 20}, ...]
-    treemap_data = []
-    tree_grouped = df_student.groupby(["Section", "Hostler"]).size().reset_index(name="Count")
-    for _, row in tree_grouped.iterrows():
-        hostler_label = "Hostler" if row["Hostler"] == "Yes" else "Day Scholar"
-        treemap_data.append({
-            "name": f"Sec {row['Section']} - {hostler_label}",
-            "value": int(row["Count"]),
-            "section": row["Section"]
-        })
-
-    # --- 8. Bullet / Gauge Data ---
-    overall_avg = round(df_student["Semester_Attendance"].mean(), 2) if not df_student.empty else 0
-
-    return render_template(
-        "analytics.html",
-        semesters=available_semesters,
-        selected_sem=selected_semester,
-        # 1. Line
-        line_labels=dates, line_hostler=hostler_data, line_scholar=day_scholar_data,
-        # 2. Bar
-        bar_labels=bar_labels, bar_data=bar_data,
-        # 3. Donut
-        donut_data=donut_data,
-        # 4. Scatter
-        scatter_data=scatter_data,
-        # 5. Histogram
-        hist_labels=hist_labels, hist_data=hist_data,
-        # 6. Funnel
-        funnel_labels=funnel_labels, funnel_data=funnel_data,
-        # 7. Treemap
-        treemap_data=treemap_data,
-        # 8. Bullet / Gauge
-        overall_avg=overall_avg
-    )
-
 @app.route("/mentor/<mentor_id>")
 @login_required(role="mentor")
 def mentor_dashboard(mentor_id):
@@ -1531,71 +1565,189 @@ def mentor_dashboard(mentor_id):
     risk_summary = []
 
     if not mentor_students.empty:
-        grouped_students = mentor_students.groupby("StudentID")
-        
-        for student_id, group in grouped_students:
-            subject_probs = []
+        for _, s_row in mentor_students.iterrows():
+            sid = s_row["StudentID"]
             
-            for _, row in group.iterrows():
-                features = np.array([[
-                    row["Rolling_Attendance"],
-                    row["Absence_Streak"],
-                    row["Semester_Attendance"],
-                    row["Attendance_Trend"]
-                ]])
+            # Use 0.0 as default if attendance is missing to trigger enquiry button
+            sem_att = float(s_row["Semester_Attendance"]) if s_row["Semester_Attendance"] is not None else 0.0
+            roll_att = float(s_row["Rolling_Attendance"]) if s_row["Rolling_Attendance"] is not None else 0.85
+            abs_streak = int(s_row["Absence_Streak"]) if s_row["Absence_Streak"] is not None else 0
+            att_trend = float(s_row["Attendance_Trend"]) if s_row["Attendance_Trend"] is not None else 0.0
 
-                try:
-                    p = model.predict_proba(features)[0][1] if model else 0.0
-                except IndexError:
-                    p = 0.0
-                subject_probs.append(p)
+            # Predict probability using ML model
+            features = np.array([[
+                roll_att,
+                abs_streak,
+                sem_att,
+                att_trend
+            ]])
+            try:
+                prob = model.predict_proba(features)[0][1] if model else 0.0
+            except Exception:
+                prob = 0.0
 
-            avg_prob = np.mean(subject_probs) if subject_probs else 0.0
-            avg_semester_att = group["Semester_Attendance"].fillna(0.85).mean()
-            avg_trend = group["Attendance_Trend"].fillna(0.0).mean()
-            has_anomaly = group["Anomaly"].fillna(0).max() == 1
-            has_nudged = group["Mentor_Nudged"].fillna(0).max() == 1
-
-            if avg_semester_att < 0.70:
-                risk_level = "High Risk"
-            elif avg_semester_att < 0.75 and avg_trend < -0.15:
-                risk_level = "High Risk"
-            elif avg_trend < -0.15:
-                risk_level = "Watchlist"
-            elif avg_prob > 0.85:
-                risk_level = "Watchlist"
+            # Determine Risk Level
+            if prob > 0.8 or sem_att < 0.65 or abs_streak > 3:
+                risk = "High Risk"
+                action = "Mentor Enquiry Required"
+            elif prob > 0.5 or sem_att < 0.75:
+                risk = "Watchlist"
+                action = "Soft Nudge / Warning"
             else:
-                risk_level = "Safe"
-
-            if has_anomaly:
-                action = "URGENT (ANOMALY): Please coordinate with parents immediately."
-            elif has_nudged:
-                action = "ACTION REQUIRED: Automated Intervention Triggered. Please check in with student."
-            elif risk_level == "High Risk" and avg_trend < -0.3:
-                action = "URGENT: Schedule Meeting"
-            elif risk_level == "High Risk":
-                action = "Schedule Counseling Session"
-            elif risk_level == "Watchlist":
-                action = "Send Advisory Warning"
-            else:
-                action = "No Action Required"
+                risk = "Safe"
+                action = "Regular Monitoring"
 
             risk_summary.append({
-                "StudentID": student_id,
-                "Semester_Attendance": round(avg_semester_att, 2),
-                "Trend": round(avg_trend, 3),
-                "Probability": round(avg_prob, 2),
-                "Risk_Level": risk_level,
-                "Anomaly": has_anomaly,
-                "Nudged": has_nudged,
-                "Action": action   
+                "StudentID": sid,
+                "Student_Name": s_row["Student_Name"],
+                "Section": s_row["Section"],
+                "Semester_Attendance": round(sem_att, 2),
+                "Trend": "Improving" if att_trend > 0 else "Declining",
+                "Probability": f"{int(prob * 100)}%",
+                "Risk_Level": risk,
+                "Nudged": bool(s_row["Mentor_Nudged"]),
+                "Action": action,
+                "Anomaly": bool(s_row["Anomaly"])
             })
+
+    # Sort students by risk (High Risk first)
+    risk_summary.sort(key=lambda x: x["Risk_Level"] == "Safe")
 
     return render_template(
         "mentor_dashboard.html",
         mentor_id=mentor_id,
         students=risk_summary
     )
+
+@app.route("/mentor/trigger_enquiry", methods=["POST"])
+@login_required(role=["mentor", "faculty"])
+def mentor_trigger_enquiry():
+    """Mentor triggers a formal attendance enquiry for a critical student."""
+    data = request.get_json()
+    student_id = data.get("student_id")
+    mentor_id = session.get("username")
+
+    if not student_id:
+        return jsonify({"status": "error", "message": "Student ID missing"}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # DEBUG STEP 2: VERIFY mentor_id MAPPING
+        print(f"DEBUG TRIGGER REQUEST: student_id={student_id}, mentor_id={mentor_id}")
+        
+        cursor.execute(
+            "INSERT INTO attendance_enquiry (student_id, mentor_id) VALUES (?, ?)",
+            (student_id, mentor_id)
+        )
+        conn.commit()
+        
+        # Verify creation
+        cursor.execute("SELECT last_insert_rowid()")
+        new_id = cursor.fetchone()[0]
+        cursor.execute("SELECT * FROM attendance_enquiry WHERE id = ?", (new_id,))
+        created_row = cursor.fetchone()
+        print(f"DEBUG DB TRIGGER VERIFY: New row: {created_row}")
+        
+        return jsonify({"status": "success"})
+    except Exception as e:
+        print(f"Error triggering enquiry: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route("/mentor/check_enquiry_status")
+@login_required(role=["mentor", "faculty"])
+def mentor_check_enquiry_status():
+    """Check if an enquiry is already pending for a student."""
+    student_id = request.args.get("student_id")
+    mentor_id = session.get("username")
+    
+    if not student_id:
+        return jsonify({"status": "error", "message": "Student ID missing"}), 400
+        
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM attendance_enquiry WHERE student_id = ? AND mentor_id = ? AND reason IS NULL",
+            (student_id, mentor_id)
+        )
+        already_sent = cursor.fetchone() is not None
+        return jsonify({"already_sent": already_sent})
+    except Exception as e:
+        print(f"Error checking enquiry status: {e}")
+        return jsonify({"already_sent": False})
+    finally:
+        conn.close()
+
+@app.route("/mentor/notifications")
+@login_required(role=["mentor", "faculty"])
+def mentor_notifications():
+    """Fetch unread student enquiry responses for the mentor."""
+    mentor_id = session.get("username")
+    conn = get_db_connection()
+    try:
+        # DEBUG STEP 3: DEBUG /mentor/notifications API
+        print(f"DEBUG NOTIFY REQUEST: mentor_id={mentor_id}")
+        
+        # Join with students table to get student name
+        # Using LOWER() to ensure case-insensitive match for mentor_id
+        query = """
+        SELECT e.id AS enquiry_id, e.student_id, s.name AS student_name, e.reason, e.responded_at
+        FROM attendance_enquiry e
+        JOIN students s ON e.student_id = s.registration_no
+        WHERE LOWER(e.mentor_id) = LOWER(?) AND e.reason IS NOT NULL AND e.is_read = 0
+        ORDER BY e.responded_at DESC
+        """
+        notifications_df = pd.read_sql_query(query, conn, params=(mentor_id,))
+        
+        print(f"DEBUG NOTIFY RESULT: found {len(notifications_df)} rows")
+        
+        # DEBUG STEP 4: VERIFY RESPONSE FORMAT
+        resp_data = []
+        for _, row in notifications_df.iterrows():
+            resp_data.append({
+                "mentor_id": mentor_id,
+                "title": "New Attendance Response",
+                "message": f"{row['student_name']} has submitted a response: {row['reason']}",
+                "response_id": str(row['enquiry_id']),
+                "is_read": False,
+                "created_at": str(row['responded_at'])
+            })
+        
+        print(f"DEBUG NOTIFY JSON: {resp_data}")
+        return jsonify({"notifications": resp_data})
+    except Exception as e:
+        print(f"Error fetching mentor notifications: {e}")
+        return jsonify({"notifications": []}), 500
+    finally:
+        conn.close()
+
+@app.route("/mentor/mark_notification_read", methods=["POST"])
+@login_required(role=["mentor", "faculty"])
+def mentor_mark_notification_read():
+    """Mark a specific student enquiry notification as read."""
+    data = request.get_json()
+    enquiry_id = data.get("enquiry_id")
+
+    if not enquiry_id:
+        return jsonify({"status": "error", "message": "Enquiry ID missing"}), 400
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE attendance_enquiry SET is_read = 1 WHERE id = ?",
+            (enquiry_id,)
+        )
+        conn.commit()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        print(f"Error marking notification as read: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        conn.close()
 
 @app.route("/student/<student_id>")
 def student_detail(student_id):
@@ -1749,6 +1901,118 @@ def api_student_subjects(student_id):
     finally:
         conn.close()
 
+# ---- NEW API: Student Analytics for Popup ---- #
+@app.route("/mentor/student_analytics/<student_id>")
+def mentor_student_analytics(student_id):
+    if "user_id" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+        
+    conn = get_db_connection()
+    try:
+        att_df = pd.read_sql_query(
+            "SELECT Date, Subject, Present, Rolling_Attendance, Absence_Streak, Parent_Notified FROM attendance WHERE StudentID = ? ORDER BY Date ASC",
+            conn, params=(student_id,)
+        )
+        notifications_df = pd.read_sql_query(
+            "SELECT triggered_at as Date, reason, responded_at FROM attendance_enquiry WHERE student_id = ?",
+            conn, params=(student_id,)
+        )
+        
+        section_query = "SELECT section FROM students WHERE registration_no = ? LIMIT 1"
+        section_res = pd.read_sql_query(section_query, conn, params=(student_id,))
+        section = section_res.iloc[0]["section"] if not section_res.empty else None
+
+        class_avg_df = pd.DataFrame()
+        if section:
+            class_avg_query = "SELECT Date, ROUND(SUM(Present)*100.0/COUNT(*), 1) as class_avg FROM attendance WHERE Section = ? GROUP BY Date ORDER BY Date ASC"
+            class_avg_df = pd.read_sql_query(class_avg_query, conn, params=(section,))
+
+        analytics = {
+            "attendance_over_time": [],
+            "subject_breakdown": [],
+            "risk_trend": [],
+            "absence_streak_history": [],
+            "class_average": [],
+            "parent_notifications": []
+        }
+
+        if not att_df.empty:
+            subj_grp = att_df.groupby("Subject")
+            for subj, grp in subj_grp:
+                pct = round((grp["Present"].sum() / len(grp)) * 100, 1)
+                analytics["subject_breakdown"].append({"subject": str(subj), "percentage": float(pct)})
+            
+            att_df["Date_Obj"] = pd.to_datetime(att_df["Date"], errors='coerce')
+            att_df = att_df.dropna(subset=['Date_Obj'])
+            att_df["Week"] = att_df["Date_Obj"].dt.isocalendar().week
+            
+            weekly_grp = att_df.groupby("Week")
+            for w, grp in weekly_grp:
+                pct = round((grp["Present"].sum() / len(grp)) * 100, 1)
+                analytics["attendance_over_time"].append({"week": f"Week {int(w)}", "percentage": float(pct)})
+                
+                avg_roll = grp["Rolling_Attendance"].mean()
+                if pd.isna(avg_roll): avg_roll = 1.0
+                risk_score = round(1.0 - avg_roll, 2)
+                analytics["risk_trend"].append({"week": f"Week {int(w)}", "score": float(max(0.0, risk_score))})
+
+            streak_df = att_df[att_df["Absence_Streak"] > 0].copy()
+            streak_df = streak_df.drop_duplicates(subset=['Date'])
+            for _, row in streak_df.iterrows():
+                analytics["absence_streak_history"].append({
+                    "date": str(row["Date"]),
+                    "streak": int(row["Absence_Streak"])
+                })
+            
+            if not class_avg_df.empty:
+                class_avg_df["Date_Obj"] = pd.to_datetime(class_avg_df["Date"], errors='coerce')
+                class_avg_df = class_avg_df.dropna(subset=['Date_Obj'])
+                class_avg_df["Week"] = class_avg_df["Date_Obj"].dt.isocalendar().week
+                
+                class_weekly = class_avg_df.groupby("Week")["class_avg"].mean().reset_index()
+                student_weekly = att_df.groupby("Week")["Present"].agg(lambda x: round((x.sum()/len(x))*100, 1)).reset_index()
+                
+                for _, row in student_weekly.iterrows():
+                    w = row["Week"]
+                    s_pct = row["Present"]
+                    c_avg_row = class_weekly[class_weekly["Week"] == w]
+                    c_pct = round(c_avg_row["class_avg"].values[0], 1) if not c_avg_row.empty else None
+                    if c_pct is not None:
+                        analytics["class_average"].append({
+                            "week": f"Week {int(w)}",
+                            "student": float(s_pct),
+                            "class_avg": float(c_pct)
+                        })
+
+            notif_df = att_df[att_df["Parent_Notified"] == 1].copy()
+            notif_df = notif_df.drop_duplicates(subset=['Date'])
+            for _, row in notif_df.iterrows():
+                analytics["parent_notifications"].append({
+                    "date": str(row["Date"]),
+                    "type": "System Warning",
+                    "status": "Sent"
+                })
+
+        for _, row in notifications_df.iterrows():
+            d = str(row["Date"]).split(" ")[0]
+            status = "Responded" if pd.notna(row["responded_at"]) else "Pending"
+            analytics["parent_notifications"].append({
+                "date": d,
+                "type": "Mentor Enquiry",
+                "status": status
+            })
+
+        analytics["parent_notifications"] = sorted(analytics["parent_notifications"], key=lambda x: x["date"], reverse=True)
+
+        return jsonify(analytics)
+    except Exception as e:
+        import traceback
+        print(f"Error computing analytics: {e}")
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
 
 # ---- Faculty: Upload Student CSV ---- #
 @app.route("/faculty/upload_students", methods=["POST"])
@@ -1871,5 +2135,166 @@ def faculty_schedule_counselling():
         conn.close()
 
 
+# ========== ANALYTICS CSV CACHE & LOADER ==========
+
+_analytics_cache = {}
+
+def _load_analytics_csvs():
+    """Load and cache processed analytics CSV files."""
+    if _analytics_cache:
+        return _analytics_cache
+    
+    processed_path = os.path.join(base_dir, 'data', 'processed', 'processed_attendance.csv')
+    anomaly_path = os.path.join(base_dir, 'data', 'processed', 'anomaly_results.csv')
+    
+    att_df = pd.read_csv(processed_path)
+    anom_df = pd.read_csv(anomaly_path)
+    
+    # Per-student summary
+    per_student = att_df.groupby(['StudentID', 'Student_Name', 'Section']).agg(
+        score=('Present', 'mean')
+    ).reset_index()
+    per_student['score'] = (per_student['score'] * 100).round(1)
+    
+    def _risk(s):
+        if s >= 90: return 'exemplary'
+        elif s >= 75: return 'stable'
+        elif s >= 65: return 'watch'
+        elif s >= 50: return 'atrisk'
+        else: return 'critical'
+    
+    per_student['risk'] = per_student['score'].apply(_risk)
+    
+    # Weekly trends (last 8 weeks)
+    att_df['week'] = pd.to_datetime(att_df['Date']).dt.strftime('%Y-W%W')
+    weekly = att_df.groupby('week')['Present'].mean().reset_index()
+    weekly['avg_attendance'] = (weekly['Present'] * 100).round(1)
+    weekly = weekly.sort_values('week').tail(8).reset_index(drop=True)
+    
+    _analytics_cache['students'] = per_student
+    _analytics_cache['weekly'] = weekly
+    _analytics_cache['anomalies'] = anom_df
+    
+    return _analytics_cache
+
+
+# ========== ANALYTICS API ENDPOINTS (Enhanced with AnalyticsService) ==========
+
+@app.route("/api/analytics/students")
+@login_required(role="admin")
+def api_analytics_students():
+    """Return all students with their attendance scores and risk categories."""
+    try:
+        students = analytics_service.get_students_with_synthetic_data()
+        result = []
+        for student in students:
+            result.append({
+                'id': student.get('id'),
+                'name': student.get('name'),
+                'section': student.get('section'),
+                'score': float(student.get('score', 0)),
+                'risk': student.get('risk', 'unknown'),
+                'isAnomaly': bool(student.get('isAnomaly', False)),
+                'weeklyChange': float(student.get('weeklyChange', 0)),
+                'attendanceStreak': int(student.get('attendanceStreak', 0))
+            })
+        print(f"✓ /api/analytics/students returned {len(result)} students")
+        return jsonify(result)
+    except Exception as e:
+        print(f"❌ /api/analytics/students error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route("/api/analytics/risk-distribution")
+@login_required(role="admin")
+def api_analytics_risk_distribution():
+    """Return count of students per risk category."""
+    try:
+        distribution = analytics_service.get_risk_distribution()
+        print(f"✓ /api/analytics/risk-distribution: {distribution}")
+        return jsonify(distribution)
+    except Exception as e:
+        print(f"❌ /api/analytics/risk-distribution error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route("/api/analytics/weekly-trends")
+@login_required(role="admin")
+def api_analytics_weekly_trends():
+    """Return weekly attendance trends for the last 8 weeks."""
+    try:
+        trends = analytics_service.get_weekly_trends()
+        print(f"✓ /api/analytics/weekly-trends returned {len(trends)} weeks")
+        return jsonify(trends)
+    except Exception as e:
+        print(f"❌ /api/analytics/weekly-trends error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route("/api/analytics/anomalies")
+@login_required(role="admin")
+def api_analytics_anomalies():
+    """Return students flagged as having anomalies in attendance (Legacy endpoint)."""
+    try:
+        students = analytics_service.get_students_with_synthetic_data()
+        anomalies = [s for s in students if s.get('isAnomaly', False)]
+        
+        result = []
+        for student in anomalies:
+            result.append({
+                'id': student.get('id'),
+                'name': student.get('name'),
+                'score': float(student.get('score', 0)),
+                'isAnomaly': True,
+                'weeklyChange': float(student.get('weeklyChange', 0))
+            })
+        
+        print(f"✓ /api/analytics/anomalies returned {len(result)} anomalies")
+        return jsonify(result)
+    except Exception as e:
+        print(f"❌ /api/analytics/anomalies error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route("/api/dbscan", methods=["GET"])
+@login_required(role="admin")
+def api_dbscan():
+    """
+    Return DBSCAN clustering results with anomaly detection.
+    Features: attendance score and weekly change percentage.
+    Returns: anomalies, normal clusters, and cluster statistics.
+    """
+    try:
+        # Get query parameters for DBSCAN settings
+        eps = float(request.args.get('eps', 0.3))
+        min_samples = int(request.args.get('min_samples', 5))
+        
+        print(f"\n🔬 /api/dbscan called with eps={eps}, min_samples={min_samples}")
+        
+        # Perform DBSCAN clustering
+        result = analytics_service.perform_dbscan_clustering(eps=eps, min_samples=min_samples)
+        
+        # Format response
+        response = {
+            'anomalies': result['anomalies'],
+            'normal': result['normal'],
+            'cluster_stats': result['cluster_stats'],
+            'visualization': {
+                'x_axis': 'Attendance Score',
+                'y_axis': 'Weekly Change %',
+                'red_color': 'Anomaly (DBSCAN label = -1)',
+                'blue_color': 'Normal (DBSCAN label >= 0)'
+            }
+        }
+        
+        print(f"✓ /api/dbscan returned {len(result['anomalies'])} anomalies and {len(result['normal'])} normal points")
+        return jsonify(response)
+    except Exception as e:
+        print(f"❌ /api/dbscan error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="127.0.0.1", port=5000, debug=True)

@@ -90,7 +90,138 @@
             text-decoration: none;
             cursor: pointer;
         }
+
+        .btn-enquiry {
+            background-color: #f38ba8;
+            color: #1e1e2e;
+            border-radius: 8px;
+            font-weight: 600;
+            padding: 6px 16px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-enquiry:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .enquiry-sent {
+            background-color: #313244 !important;
+            color: #6c7086 !important;
+            cursor: not-allowed !important;
+            transform: none !important;
+            opacity: 1 !important;
+        }
+
+        /* Notification Center Styles */
+        .notification-wrapper {
+            position: relative;
+            margin-right: 20px;
+        }
+
+        .notification-bell {
+            cursor: pointer;
+            font-size: 1.5rem;
+            color: #cdd6f4;
+            transition: color 0.2s;
+        }
+
+        .notification-bell:hover {
+            color: #a6e3a1;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #f38ba8;
+            color: #1e1e2e;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 2px 5px;
+            border-radius: 10px;
+            display: none;
+            border: 2px solid #11111b;
+        }
+
+        .notification-dropdown {
+            position: absolute;
+            top: 40px;
+            right: 0;
+            background: #1e1e2e;
+            border: 1px solid #313244;
+            border-radius: 12px;
+            width: 320px;
+            max-height: 400px;
+            overflow-y: auto;
+            display: none;
+            z-index: 1000;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+        }
+
+        .notification-dropdown.active {
+            display: block;
+        }
+
+        .notification-card {
+            padding: 16px;
+            border-bottom: 1px solid #313244;
+            cursor: pointer;
+            transition: background 0.2s;
+            position: relative;
+        }
+
+        .notification-card:hover {
+            background: #2a2a3d;
+        }
+
+        .unread-indicator {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 8px;
+            height: 8px;
+            background: #a6e3a1;
+            border-radius: 50%;
+        }
+
+        .notif-header {
+            font-size: 13px;
+            font-weight: 600;
+            color: #cdd6f4;
+            margin-bottom: 4px;
+        }
+
+        .notif-label {
+            font-size: 11px;
+            color: #6c7086;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .notif-reason {
+            font-size: 13px;
+            color: #cdd6f4;
+            font-style: italic;
+            margin: 4px 0;
+            line-height: 1.4;
+        }
+
+        .notif-time {
+            font-size: 11px;
+            color: #6c7086;
+        }
+
+        .empty-notifications {
+            padding: 20px;
+            text-align: center;
+            color: #6c7086;
+            font-size: 13px;
+        }
     </style>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 
     <!-- Global Light Mode Fallback -->
     <style>
@@ -111,7 +242,16 @@
 
     <div class="header">
         <h2 style="margin:0;">Mentor Dashboard: {{ mentor_id }}</h2>
-        <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+        <div style="display: flex; align-items: center;">
+            <div class="notification-wrapper">
+                <span class="material-symbols-outlined notification-bell" onclick="toggleNotifDropdown()">notifications</span>
+                <span class="notification-badge" id="notif-count">0</span>
+                <div class="notification-dropdown" id="notif-dropdown">
+                    <!-- Notifications populated by JS -->
+                </div>
+            </div>
+            <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+        </div>
     </div>
 
     <table>
@@ -123,6 +263,7 @@
             <th>Status</th>
             <th>Automated Nudge Sent?</th>
             <th>Recommended Action</th>
+            <th>Action Alert</th>
         </tr>
 
         {% for s in students %}
@@ -142,6 +283,13 @@
                 {% if s.Nudged %}YES (Intervention Required){% else %}No{% endif %}
             </td>
             <td><strong>{{ s.Action }}</strong></td>
+            <td>
+                {% if s.Semester_Attendance < 0.75 %}
+                <button class="btn-enquiry" onclick="triggerEnquiry('{{ s.StudentID }}', this)">Enquiry</button>
+                {% else %}
+                -
+                {% endif %}
+            </td>
         </tr>
         {% endfor %}
 
@@ -182,6 +330,94 @@
             }
             updateGlobalThemeIcon();
         }
+
+        function triggerEnquiry(studentId, btn) {
+            if (btn.classList.contains('enquiry-sent')) return;
+
+            fetch('/mentor/trigger_enquiry', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ student_id: studentId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    btn.innerText = 'Enquiry Sent ✓';
+                    btn.classList.add('enquiry-sent');
+                    btn.disabled = true;
+                } else {
+                    alert('Error: ' + (data.message || 'Could not trigger enquiry'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred during the enquiry trigger.');
+            });
+        }
+
+        // --- Notification Logic ---
+        function toggleNotifDropdown() {
+            document.getElementById('notif-dropdown').classList.toggle('active');
+        }
+
+        function fetchNotifications() {
+            console.log("Fetching notifications...");
+            fetch('/mentor/notifications')
+                .then(res => res.json())
+                .then(data => {
+                    console.log("API response:", data);
+                    // Extract notifications array from new JSON structure
+                    renderNotifications(data.notifications || []);
+                })
+                .catch(err => console.error("Error fetching notifications:", err));
+        }
+
+        function renderNotifications(notifs) {
+            const dropdown = document.getElementById('notif-dropdown');
+            const badge = document.getElementById('notif-count');
+            
+            if (notifs && notifs.length > 0) {
+                // Update badge
+                badge.innerText = notifs.length;
+                badge.style.display = 'block';
+                
+                // Render cards
+                dropdown.innerHTML = notifs.map(n => `
+                    <div class="notification-card" onclick="markAsRead(${n.enquiry_id})">
+                        <div class="unread-indicator"></div>
+                        <div class="notif-header">${n.student_name} (${n.student_id})</div>
+                        <div class="notif-label">Reason submitted:</div>
+                        <div class="notif-reason"><i>"${n.reason}"</i></div>
+                        <div class="notif-time">${n.responded_at}</div>
+                    </div>
+                `).join('');
+            } else {
+                // No notifications
+                badge.style.display = 'none';
+                badge.innerText = '0';
+                dropdown.innerHTML = '<div class="empty-notifications">No new notifications</div>';
+            }
+        }
+
+        function markAsRead(id) {
+            fetch('/mentor/mark_notification_read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enquiry_id: id })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    fetchNotifications();
+                }
+            });
+        }
+
+        // Initial fetch and polling
+        fetchNotifications();
+        setInterval(fetchNotifications, 10000);
 
         // Initialize icon immediately and wait for load
         updateGlobalThemeIcon();

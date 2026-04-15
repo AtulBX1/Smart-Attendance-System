@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Attendance Analytics — Admin Portal</title>
+  <meta name="description" content="Advanced student attendance risk analytics dashboard with Catppuccin Mocha theme, visualizing attendance categories, trends, and anomaly detection for administrators.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* ==============================
+       CATPPUCCIN MOCHA COLOR TOKENS
+    ============================== */
+    :root {
+      --base:        #1e1e2e;
+      --mantle:      #181825;
+      --crust:       #11111b;
+      --surface0:    #313244;
+      --surface1:    #45475a;
+      --surface2:    #585b70;
+      --overlay0:    #6c7086;
+      --overlay1:    #7f849c;
+      --text:        #cdd6f4;
+      --subtext0:    #a6adc8;
+      --subtext1:    #bac2de;
+
+      --mauve:       #cba6f7;
+      --red:         #f38ba8;
+      --peach:       #fab387;
+      --yellow:      #f9e2af;
+      --green:       #a6e3a1;
+      --teal:        #94e2d5;
+      --sky:         #89dceb;
+      --blue:        #89b4fa;
+      --lavender:    #b4befe;
+
+      /* Glow values */
+      --glow-mauve:  rgba(203, 166, 247, 0.25);
+      --glow-red:    rgba(243, 139, 168, 0.25);
+      --glow-peach:  rgba(250, 179, 135, 0.25);
+      --glow-yellow: rgba(249, 226, 175, 0.25);
+      --glow-green:  rgba(166, 227, 161, 0.25);
+      --glow-blue:   rgba(137, 180, 250, 0.25);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--base);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ========== SCROLLBAR ========== */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--mantle); }
+    ::-webkit-scrollbar-thumb { background: var(--surface1); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--overlay0); }
+
+    /* ========== PAGE HEADER ========== */
+    .page-header {
+      padding: 2.5rem 2.5rem 1.5rem;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+      border-bottom: 1px solid var(--surface0);
+      background: linear-gradient(135deg, rgba(30,30,46,0.98) 0%, rgba(24,24,37,0.98) 100%);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+
+    .header-left h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, var(--lavender), var(--mauve), var(--blue));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.25rem;
+    }
+
+    .header-left p {
+      font-size: 0.8rem;
+      color: var(--subtext0);
+      font-weight: 400;
+    }
+
+    .header-controls {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .toggle-group {
+      display: flex;
+      background: var(--surface0);
+      border-radius: 10px;
+      padding: 3px;
+      border: 1px solid var(--surface1);
+      gap: 2px;
+    }
+
+    .toggle-btn {
+      padding: 6px 14px;
+      border-radius: 7px;
+      border: none;
+      background: transparent;
+      color: var(--subtext0);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .toggle-btn.active {
+      background: var(--mauve);
+      color: var(--base);
+      box-shadow: 0 0 12px var(--glow-mauve);
+    }
+
+    .period-label {
+      font-size: 0.75rem;
+      color: var(--subtext0);
+      padding: 6px 12px;
+      background: var(--surface0);
+      border-radius: 8px;
+      border: 1px solid var(--surface1);
+    }
+
+    /* ========== MAIN WRAP ========== */
+    .analytics-wrap {
+      padding: 2rem 2.5rem 4rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* ========== STAT BADGES ========== */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-badge {
+      background: rgba(49, 50, 68, 0.6);
+      border: 1px solid var(--surface1);
+      border-radius: 14px;
+      padding: 1.25rem 1rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      backdrop-filter: blur(8px);
+      cursor: default;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    .stat-badge.visible {
+      animation: slideUp 0.5s ease forwards;
+    }
+
+    .stat-badge::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      border-radius: 14px 14px 0 0;
+    }
+
+    .stat-badge:hover {
+      transform: translateY(-4px);
+    }
+
+    .stat-badge .dot-icon {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      margin-bottom: 0.25rem;
+    }
+
+    .stat-badge .stat-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--subtext0);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    .stat-badge .stat-count {
+      font-size: 2rem;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -1px;
+    }
+
+    .stat-badge .stat-sub {
+      font-size: 0.72rem;
+      color: var(--subtext0);
+    }
+
+    /* Colored variants */
+    .stat-critical  { border-color: rgba(243,139,168,0.35); }
+    .stat-critical::before { background: var(--red); }
+    .stat-critical:hover { box-shadow: 0 0 24px var(--glow-red); }
+    .stat-critical .stat-count { color: var(--red); }
+    .stat-critical .dot-icon { background: var(--red); box-shadow: 0 0 8px var(--glow-red); }
+
+    .stat-risk { border-color: rgba(250,179,135,0.35); }
+    .stat-risk::before { background: var(--peach); }
+    .stat-risk:hover { box-shadow: 0 0 24px var(--glow-peach); }
+    .stat-risk .stat-count { color: var(--peach); }
+    .stat-risk .dot-icon { background: var(--peach); box-shadow: 0 0 8px var(--glow-peach); }
+
+    .stat-watch { border-color: rgba(249,226,175,0.35); }
+    .stat-watch::before { background: var(--yellow); }
+    .stat-watch:hover { box-shadow: 0 0 24px var(--glow-yellow); }
+    .stat-watch .stat-count { color: var(--yellow); }
+    .stat-watch .dot-icon { background: var(--yellow); box-shadow: 0 0 8px var(--glow-yellow); }
+
+    .stat-stable { border-color: rgba(137,180,250,0.35); }
+    .stat-stable::before { background: var(--blue); }
+    .stat-stable:hover { box-shadow: 0 0 24px var(--glow-blue); }
+    .stat-stable .stat-count { color: var(--blue); }
+    .stat-stable .dot-icon { background: var(--blue); box-shadow: 0 0 8px var(--glow-blue); }
+
+    .stat-exemplary { border-color: rgba(166,227,161,0.35); }
+    .stat-exemplary::before { background: var(--green); }
+    .stat-exemplary:hover { box-shadow: 0 0 24px var(--glow-green); }
+    .stat-exemplary .stat-count { color: var(--green); }
+    .stat-exemplary .dot-icon { background: var(--green); box-shadow: 0 0 8px var(--glow-green); }
+
+    .stat-anomaly { border-color: rgba(203,166,247,0.35); }
+    .stat-anomaly::before { background: var(--mauve); }
+    .stat-anomaly:hover { box-shadow: 0 0 24px var(--glow-mauve); }
+    .stat-anomaly .stat-count { color: var(--mauve); }
+    .stat-anomaly .dot-icon { background: var(--mauve); box-shadow: 0 0 8px var(--glow-mauve); }
+
+    /* Pulse for critical & anomaly */
+    .stat-critical .dot-icon,
+    .stat-anomaly .dot-icon {
+      animation: pulseDot 2s ease-in-out infinite;
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.5); opacity: 0.7; }
+    }
+
+    /* ========== CHART SECTION ========== */
+    .chart-section {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    /* Glass Card */
+    .glass-card {
+      background: rgba(30, 30, 46, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(69, 71, 90, 0.6);
+      border-radius: 16px;
+      padding: 1.75rem;
+      position: relative;
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(28px);
+      transition: box-shadow 0.3s ease;
+    }
+
+    .glass-card.visible {
+      animation: slideUp 0.6s ease forwards;
+    }
+
+    .glass-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(180,190,254,0.03) 0%, rgba(203,166,247,0.02) 100%);
+      pointer-events: none;
+    }
+
+    .glass-card:hover {
+      box-shadow: 0 0 40px rgba(137,180,250,0.07), 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-title-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+    }
+
+    .card-subtitle {
+      font-size: 0.75rem;
+      color: var(--subtext0);
+      margin-top: 2px;
+    }
+
+    .chart-canvas-wrap {
+      position: relative;
+      width: 100%;
+    }
+
+    /* ========== LEGEND PILLS ========== */
+    .legend-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .legend-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      background: rgba(49,50,68,0.7);
+      border: 1px solid transparent;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--subtext0);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+
+    .legend-pill:hover {
+      color: var(--text);
+      transform: translateY(-1px);
+    }
+
+    .legend-pill.active {
+      color: var(--text);
+    }
+
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .pill-red    { --pill-c: var(--red);    --pill-g: var(--glow-red);    }
+    .pill-peach  { --pill-c: var(--peach);  --pill-g: var(--glow-peach);  }
+    .pill-yellow { --pill-c: var(--yellow); --pill-g: var(--glow-yellow); }
+    .pill-blue   { --pill-c: var(--blue);   --pill-g: var(--glow-blue);   }
+    .pill-green  { --pill-c: var(--green);  --pill-g: var(--glow-green);  }
+    .pill-mauve  { --pill-c: var(--mauve);  --pill-g: var(--glow-mauve);  }
+
+    .legend-pill.active {
+      border-color: var(--pill-c);
+      background: rgba(49,50,68,0.9);
+      box-shadow: 0 0 10px var(--pill-g);
+      color: var(--pill-c);
+    }
+
+    /* ========== CUSTOM TOOLTIP ========== */
+    #custom-tooltip {
+      position: fixed;
+      z-index: 10000;
+      pointer-events: all;
+      min-width: 200px;
+      max-width: 260px;
+      background: rgba(24, 24, 37, 0.97);
+      border: 1px solid var(--surface1);
+      border-radius: 12px;
+      padding: 1rem;
+      box-shadow: 0 0 30px rgba(0,0,0,0.6), 0 0 20px var(--glow-mauve);
+      opacity: 0;
+      transform: translateY(6px) scale(0.97);
+      transition: opacity 0.18s ease, transform 0.18s ease;
+      backdrop-filter: blur(16px);
+    }
+
+    #custom-tooltip.show {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    .tt-category {
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .tt-count {
+      font-size: 1.4rem;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .tt-names {
+      margin-bottom: 10px;
+    }
+
+    .tt-name-chip {
+      display: inline-block;
+      padding: 2px 8px;
+      margin: 2px 2px 2px 0;
+      background: var(--surface0);
+      border-radius: 6px;
+      font-size: 0.7rem;
+      color: var(--subtext1);
+    }
+
+    .tt-btn {
+      display: block;
+      width: 100%;
+      padding: 7px;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: filter 0.2s ease, transform 0.15s ease;
+    }
+
+    .tt-btn:hover {
+      filter: brightness(1.15);
+      transform: translateY(-1px);
+    }
+
+    .tt-close {
+      position: absolute;
+      top: 8px; right: 8px;
+      background: transparent;
+      border: none;
+      color: var(--subtext0);
+      font-size: 0.9rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: color 0.2s;
+    }
+
+    .tt-close:hover { color: var(--red); }
+
+    /* ========== ANOMALY BANNER ========== */
+    .anomaly-banner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 1rem 1.5rem;
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(203,166,247,0.12), rgba(243,139,168,0.08));
+      border: 1px solid rgba(203,166,247,0.35);
+      margin-bottom: 1.5rem;
+      position: relative;
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(16px);
+    }
+
+    .anomaly-banner.visible {
+      animation: slideUp 0.5s 0.2s ease forwards;
+    }
+
+    .anomaly-banner::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(203,166,247,0.06), transparent);
+      animation: shimmer 3s ease infinite;
+    }
+
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    .anomaly-pulse {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: var(--mauve);
+      box-shadow: 0 0 12px var(--glow-mauve);
+      animation: pulseDot 1.5s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+
+    .anomaly-text {
+      flex: 1;
+    }
+
+    .anomaly-text strong {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--mauve);
+      margin-bottom: 2px;
+    }
+
+    .anomaly-text span {
+      font-size: 0.75rem;
+      color: var(--subtext0);
+    }
+
+    .anomaly-count {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--mauve);
+      margin-left: auto;
+      padding-left: 1rem;
+    }
+
+    /* ========== TWO COLUMN LAYOUT ========== */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+      .two-col { grid-template-columns: 1fr; }
+      .analytics-wrap { padding: 1.5rem; }
+      .page-header { padding: 1.5rem; }
+    }
+
+    /* ========== ANIMATIONS ========== */
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(28px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Stagger for stat badges */
+    .stat-badge:nth-child(1).visible { animation-delay: 0.05s; }
+    .stat-badge:nth-child(2).visible { animation-delay: 0.10s; }
+    .stat-badge:nth-child(3).visible { animation-delay: 0.15s; }
+    .stat-badge:nth-child(4).visible { animation-delay: 0.20s; }
+    .stat-badge:nth-child(5).visible { animation-delay: 0.25s; }
+    .stat-badge:nth-child(6).visible { animation-delay: 0.30s; }
+
+    /* ========== NEON BORDER ACCENT (selected card) ========== */
+    .card-neon-mauve { box-shadow: 0 0 0 1px rgba(203,166,247,0.5), 0 0 30px rgba(203,166,247,0.08); }
+    .card-neon-blue  { box-shadow: 0 0 0 1px rgba(137,180,250,0.4), 0 0 30px rgba(137,180,250,0.06); }
+  </style>
+</head>
+<body>
+
+  <!-- ===== PAGE HEADER ===== -->
+  <header class="page-header" id="sa-header">
+    <div class="header-left">
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
+        <a href="{{ url_for('dashboard') }}" style="
+          display: inline-flex; align-items: center; gap: 6px;
+          padding: 6px 14px; border-radius: 8px;
+          background: rgba(49,50,68,0.7); border: 1px solid var(--surface1);
+          color: var(--subtext0); font-size: 0.75rem; font-weight: 600;
+          text-decoration: none; transition: all 0.2s ease;
+        " onmouseover="this.style.color='var(--text)'; this.style.borderColor='var(--overlay1)';"
+           onmouseout="this.style.color='var(--subtext0)'; this.style.borderColor='var(--surface1)';">
+          ← Dashboard
+        </a>
+      </div>
+      <h1>Student Attendance Analytics</h1>
+      <p>Admin Portal · Real-time risk categorization &amp; anomaly detection</p>
+    </div>
+    <div class="header-controls">
+      <span class="period-label" id="period-label">Viewing: Weekly</span>
+      <div class="toggle-group">
+        <button class="toggle-btn active" id="btn-weekly" onclick="switchPeriod('weekly')">Weekly</button>
+        <button class="toggle-btn" id="btn-monthly" onclick="switchPeriod('monthly')">Monthly</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main class="analytics-wrap">
+
+    <!-- ANOMALY BANNER -->
+    <div class="anomaly-banner" id="anomaly-banner">
+      <div class="anomaly-pulse"></div>
+      <div class="anomaly-text">
+        <strong>⚠ Unusual Attendance Patterns Detected</strong>
+        <span>DBSCAN anomaly detection flagged students with irregular clustering — review immediately.</span>
+      </div>
+      <div class="anomaly-count" id="anomaly-count-banner">7</div>
+    </div>
+
+    <!-- STAT BADGES -->
+    <div class="stats-row" id="stats-row">
+      <div class="stat-badge stat-critical">
+        <div class="dot-icon"></div>
+        <div class="stat-label">Critical Risk</div>
+        <div class="stat-count" data-target="12">0</div>
+        <div class="stat-sub">&lt; 60% attendance</div>
+      </div>
+      <div class="stat-badge stat-risk">
+        <div class="dot-icon"></div>
+        <div class="stat-label">At Risk</div>
+        <div class="stat-count" data-target="19">0</div>
+        <div class="stat-sub">60–74% attendance</div>
+      </div>
+      <div class="stat-badge stat-watch">
+        <div class="dot-icon"></div>
+        <div class="stat-label">Watch Zone</div>
+        <div class="stat-count" data-target="23">0</div>
+        <div class="stat-sub">75–79% attendance</div>
+      </div>
+      <div class="stat-badge stat-stable">
+        <div class="dot-icon"></div>
+        <div class="stat-label">Stable</div>
+        <div class="stat-count" data-target="58">0</div>
+        <div class="stat-sub">80–89% attendance</div>
+      </div>
+      <div class="stat-badge stat-exemplary">
+        <div class="dot-icon"></div>
+        <div class="stat-label">Exemplary</div>
+        <div class="stat-count" data-target="34">0</div>
+        <div class="stat-sub">90%+ attendance</div>
+      </div>
+      <div class="stat-badge stat-anomaly">
+        <div class="dot-icon"></div>
+        <div class="stat-label">Unusual Pattern</div>
+        <div class="stat-count" data-target="7">0</div>
+        <div class="stat-sub">DBSCAN anomaly</div>
+      </div>
+    </div>
+
+    <!-- MAIN GROUPED BAR + LINE OVERLAY CHART -->
+    <div class="glass-card card-neon-mauve" id="main-chart-card" style="margin-bottom: 1.5rem;">
+      <div class="card-header">
+        <div>
+          <div class="card-title">
+            <div class="card-title-icon" style="background: linear-gradient(135deg, rgba(203,166,247,0.2), rgba(137,180,250,0.2));">📊</div>
+            <div>
+              <div>Attendance Risk Distribution</div>
+              <div class="card-subtitle">Student counts per risk category + overall attendance % overlay</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Legend Pills -->
+      <div class="legend-row" id="main-legend">
+        <div class="legend-pill pill-red active" data-cat="0" onclick="toggleCategory(this, 0)">
+          <span class="legend-dot" style="background: var(--red); box-shadow: 0 0 6px var(--glow-red);"></span>Critical Risk
+        </div>
+        <div class="legend-pill pill-peach active" data-cat="1" onclick="toggleCategory(this, 1)">
+          <span class="legend-dot" style="background: var(--peach); box-shadow: 0 0 6px var(--glow-peach);"></span>At Risk
+        </div>
+        <div class="legend-pill pill-yellow active" data-cat="2" onclick="toggleCategory(this, 2)">
+          <span class="legend-dot" style="background: var(--yellow); box-shadow: 0 0 6px var(--glow-yellow);"></span>Watch Zone
+        </div>
+        <div class="legend-pill pill-blue active" data-cat="3" onclick="toggleCategory(this, 3)">
+          <span class="legend-dot" style="background: var(--blue); box-shadow: 0 0 6px var(--glow-blue);"></span>Stable
+        </div>
+        <div class="legend-pill pill-green active" data-cat="4" onclick="toggleCategory(this, 4)">
+          <span class="legend-dot" style="background: var(--green); box-shadow: 0 0 6px var(--glow-green);"></span>Exemplary
+        </div>
+        <div class="legend-pill pill-mauve active" data-cat="5" onclick="toggleCategory(this, 5)">
+          <span class="legend-dot" style="background: var(--mauve); box-shadow: 0 0 6px var(--glow-mauve);"></span>Unusual Pattern
+        </div>
+      </div>
+
+      <div class="chart-canvas-wrap" style="height: 360px;">
+        <canvas id="mainChart"></canvas>
+      </div>
+    </div>
+
+    <!-- TWO COLUMN: Donut + Line Trend -->
+    <div class="two-col">
+
+      <!-- Donut Breakdown -->
+      <div class="glass-card card-neon-blue" id="donut-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">
+              <div class="card-title-icon" style="background: linear-gradient(135deg, rgba(137,180,250,0.2), rgba(148,226,213,0.2));">🥧</div>
+              <div>
+                <div>Distribution Snapshot</div>
+                <div class="card-subtitle">Current period breakdown</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="chart-canvas-wrap" style="height: 280px; display: flex; justify-content: center;">
+          <canvas id="donutChart"></canvas>
+        </div>
+
+        <!-- Center label overlay -->
+        <div style="text-align: center; margin-top: 1rem;">
+          <div style="font-size: 0.75rem; color: var(--subtext0);">Total Students</div>
+          <div style="font-size: 1.75rem; font-weight: 800; color: var(--text);" id="total-students-label">153</div>
+        </div>
+      </div>
+
+      <!-- Overall Attendance % Trend Line -->
+      <div class="glass-card" id="trend-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">
+              <div class="card-title-icon" style="background: linear-gradient(135deg, rgba(166,227,161,0.2), rgba(148,226,213,0.2));">📈</div>
+              <div>
+                <div>Overall Attendance Trend</div>
+                <div class="card-subtitle">Average % across all students over time</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="chart-canvas-wrap" style="height: 280px;">
+          <canvas id="trendChart"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ======= CUSTOM TOOLTIP ======= -->
+  <div id="custom-tooltip">
+    <button class="tt-close" onclick="hideTooltip()">✕</button>
+    <div class="tt-category" id="tt-cat">Category</div>
+    <div class="tt-count" id="tt-count">0</div>
+    <div class="tt-names" id="tt-names"></div>
+    <button class="tt-btn" id="tt-btn" style="background: var(--mauve); color: var(--base);">View Students →</button>
+  </div>
+
+  <script>
+  /* ============================================================
+     MOCK DATA — Static JSON, no API, no backend
+  ============================================================ */
+  const MOCK = {
+    weekly: {
+      labels: ['Week 1','Week 2','Week 3','Week 4','Week 5','Week 6','Week 7','Week 8'],
+      critical:  [5, 6, 8, 9, 10, 11, 12, 12],
+      atRisk:    [10,12,14,16,17,18,19,19],
+      watch:     [20,21,22,22,23,23,23,23],
+      stable:    [62,61,60,59,59,58,58,58],
+      exemplary: [38,36,35,35,35,34,34,34],
+      anomaly:   [2, 3, 4, 5, 6, 6, 7, 7],
+      trend:     [84,83,82,80,79,78,77,76],
+    },
+    monthly: {
+      labels: ['Jan','Feb','Mar','Apr','May','Jun'],
+      critical:  [4, 7, 9, 11, 12, 14],
+      atRisk:    [9,13,15,17,19,21],
+      watch:     [19,21,22,23,23,24],
+      stable:    [65,62,60,59,58,56],
+      exemplary: [40,37,36,35,34,33],
+      anomaly:   [1, 3, 4, 6, 7, 9],
+      trend:     [85,83,81,79,76,74],
+    }
+  };
+
+  /* Student name pools per category */
+  const NAMES = {
+    0: ['Arjun M.', 'Priya K.', 'Rohan S.', 'Sneha T.', 'Dev P.', 'Rahul J.', 'Ananya B.', 'Vikram C.', 'Lakshmi R.', 'Karan D.', 'Meera V.', 'Suresh N.'],
+    1: ['Aditya L.', 'Kavya R.', 'Nikhil G.', 'Divya M.', 'Arnav S.', 'Pooja W.', 'Sanjay K.', 'Ritika P.', 'Varun T.', 'Ishita C.', 'Mohit B.', 'Simran A.', 'Tushar H.', 'Nisha E.', 'Gaurav Y.', 'Deepa O.', 'Prasad Q.', 'Asha Z.', 'Vijay X.'],
+    2: ['Harish F.', 'Swati U.', 'Punit I.', 'Rekha J.', 'Amol K.', 'Geeta L.', 'Rajan N.', 'Sunita Q.', 'Vivek W.', 'Lalita E.'],
+    3: ['Akash R.', 'Preeti T.', 'Saurabh Y.', 'Neha U.', 'Vishal I.', 'Shruti O.', 'Manoj P.', 'Poornima A.'],
+    4: ['Chinmay S.', 'Rupali D.', 'Sachin F.', 'Pallavi G.', 'Nitin H.', 'Mansi J.'],
+    5: ['Bhushan K.', 'Tejal L.', 'Omkar N.', 'Shalini Q.', 'Paresh W.', 'Jayati E.', 'Vinayak R.']
+  };
+
+  const CATEGORY_META = [
+    { label: 'Critical Risk',    color: '#f38ba8', glow: 'rgba(243,139,168,0.4)', btnBg: '#f38ba8' },
+    { label: 'At Risk',          color: '#fab387', glow: 'rgba(250,179,135,0.4)', btnBg: '#fab387' },
+    { label: 'Watch Zone',       color: '#f9e2af', glow: 'rgba(249,226,175,0.4)', btnBg: '#f9e2af' },
+    { label: 'Stable',           color: '#89b4fa', glow: 'rgba(137,180,250,0.4)', btnBg: '#89b4fa' },
+    { label: 'Exemplary',        color: '#a6e3a1', glow: 'rgba(166,227,161,0.4)', btnBg: '#a6e3a1' },
+    { label: 'Unusual Pattern',  color: '#cba6f7', glow: 'rgba(203,166,247,0.4)', btnBg: '#cba6f7' },
+  ];
+
+  let currentPeriod = 'weekly';
+  let mainChartInstance = null;
+  let donutChartInstance = null;
+  let trendChartInstance = null;
+  let hiddenDatasets = new Set();
+
+  /* ============================================================
+     CHART.JS GLOBAL DEFAULTS
+  ============================================================ */
+  Chart.defaults.color = '#a6adc8';
+  Chart.defaults.borderColor = 'rgba(69,71,90,0.5)';
+  Chart.defaults.font.family = "'Inter', sans-serif";
+
+  /* ============================================================
+     BUILD GRADIENT FILLS for bar datasets
+  ============================================================ */
+  function makeBarGradient(ctx, color, glowColor) {
+    const grad = ctx.createLinearGradient(0, 0, 0, 400);
+    grad.addColorStop(0, color);
+    grad.addColorStop(1, glowColor.replace('0.4)', '0.15)'));
+    return grad;
+  }
+
+  /* ============================================================
+     MAIN GROUPED BAR CHART with line overlay
+  ============================================================ */
+  function buildMainChart(period) {
+    const d = MOCK[period];
+    const ctx = document.getElementById('mainChart').getContext('2d');
+
+    const rawDataArrays = [d.critical, d.atRisk, d.watch, d.stable, d.exemplary, d.anomaly];
+    const barDatasets = CATEGORY_META.map((meta, i) => ({
+      type: 'bar',
+      label: meta.label,
+      data: rawDataArrays[i],
+      backgroundColor: makeBarGradient(ctx, meta.color + 'cc', meta.glow),
+      borderColor: meta.color,
+      borderWidth: 1.5,
+      borderRadius: 6,
+      borderSkipped: false,
+      hoverBackgroundColor: meta.color + 'ee',
+      hidden: hiddenDatasets.has(i),
+      order: 2,
+    }));
+
+    const lineGrad = ctx.createLinearGradient(0, 0, 0, 400);
+    lineGrad.addColorStop(0, 'rgba(137,180,250,0.3)');
+    lineGrad.addColorStop(1, 'rgba(137,180,250,0.0)');
+
+    const lineDataset = {
+      type: 'line',
+      label: 'Overall Attendance %',
+      data: d.trend,
+      borderColor: '#89b4fa',
+      backgroundColor: lineGrad,
+      borderWidth: 3,
+      tension: 0.45,
+      fill: true,
+      pointRadius: 5,
+      pointHoverRadius: 8,
+      pointBackgroundColor: '#89b4fa',
+      pointBorderColor: '#1e1e2e',
+      pointBorderWidth: 2,
+      yAxisID: 'y2',
+      order: 1,
+      shadowColor: 'rgba(137,180,250,0.5)',
+      shadowBlur: 15,
+    };
+
+    if (mainChartInstance) mainChartInstance.destroy();
+
+    mainChartInstance = new Chart(ctx, {
+      data: {
+        labels: d.labels,
+        datasets: [...barDatasets, lineDataset],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        animation: {
+          duration: 800,
+          easing: 'easeOutQuart',
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            enabled: false,
+            external: externalTooltipHandler,
+          },
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(69,71,90,0.3)' },
+            ticks: { font: { size: 11 } },
+          },
+          y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(69,71,90,0.3)' },
+            title: { display: true, text: 'No. of Students', font: { size: 11 }, color: '#7f849c' },
+          },
+          y2: {
+            position: 'right',
+            grid: { drawOnChartArea: false },
+            min: 60,
+            max: 100,
+            title: { display: true, text: 'Attendance %', font: { size: 11 }, color: '#89b4fa' },
+            ticks: { color: '#89b4fa', callback: v => v + '%' },
+          }
+        }
+      }
+    });
+  }
+
+  /* ============================================================
+     DONUT CHART
+  ============================================================ */
+  function buildDonutChart(period) {
+    const d = MOCK[period];
+    const lastIdx = d.labels.length - 1;
+    const values = [
+      d.critical[lastIdx], d.atRisk[lastIdx], d.watch[lastIdx],
+      d.stable[lastIdx], d.exemplary[lastIdx], d.anomaly[lastIdx]
+    ];
+    const ctx = document.getElementById('donutChart').getContext('2d');
+
+    if (donutChartInstance) donutChartInstance.destroy();
+
+    donutChartInstance = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: CATEGORY_META.map(m => m.label),
+        datasets: [{
+          data: values,
+          backgroundColor: CATEGORY_META.map(m => m.color + 'cc'),
+          borderColor: CATEGORY_META.map(m => m.color),
+          borderWidth: 1.5,
+          hoverBackgroundColor: CATEGORY_META.map(m => m.color),
+          hoverBorderWidth: 0,
+          hoverOffset: 8,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '68%',
+        animation: { animateRotate: true, duration: 900, easing: 'easeOutQuart' },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => `${ctx.label}: ${ctx.raw} students`
+            },
+            backgroundColor: 'rgba(24,24,37,0.97)',
+            borderColor: 'rgba(69,71,90,0.8)',
+            borderWidth: 1,
+            titleColor: '#cdd6f4',
+            bodyColor: '#a6adc8',
+            padding: 10,
+          }
+        }
+      }
+    });
+
+    const total = values.reduce((a, b) => a + b, 0);
+    document.getElementById('total-students-label').textContent = total;
+  }
+
+  /* ============================================================
+     TREND LINE CHART
+  ============================================================ */
+  function buildTrendChart(period) {
+    const d = MOCK[period];
+    const ctx = document.getElementById('trendChart').getContext('2d');
+
+    const grad = ctx.createLinearGradient(0, 0, 0, 300);
+    grad.addColorStop(0, 'rgba(166,227,161,0.35)');
+    grad.addColorStop(1, 'rgba(166,227,161,0.0)');
+
+    if (trendChartInstance) trendChartInstance.destroy();
+
+    trendChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: d.labels,
+        datasets: [{
+          label: 'Avg Attendance %',
+          data: d.trend,
+          borderColor: '#a6e3a1',
+          backgroundColor: grad,
+          borderWidth: 2.5,
+          tension: 0.45,
+          fill: true,
+          pointRadius: 4,
+          pointHoverRadius: 7,
+          pointBackgroundColor: '#a6e3a1',
+          pointBorderColor: '#1e1e2e',
+          pointBorderWidth: 2,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 800, easing: 'easeOutQuart' },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(24,24,37,0.97)',
+            borderColor: 'rgba(69,71,90,0.8)',
+            borderWidth: 1,
+            titleColor: '#cdd6f4',
+            bodyColor: '#a6adc8',
+            padding: 10,
+            callbacks: { label: ctx => `${ctx.raw}% avg attendance` }
+          }
+        },
+        scales: {
+          x: { grid: { color: 'rgba(69,71,90,0.3)' }, ticks: { font: { size: 10 } } },
+          y: {
+            min: 60, max: 95,
+            grid: { color: 'rgba(69,71,90,0.3)' },
+            ticks: { callback: v => v + '%', font: { size: 10 } }
+          }
+        }
+      }
+    });
+  }
+
+  /* ============================================================
+     EXTERNAL TOOLTIP HANDLER (advanced custom tooltip)
+  ============================================================ */
+  function externalTooltipHandler(context) {
+    const { chart, tooltip } = context;
+    const ttEl = document.getElementById('custom-tooltip');
+
+    if (tooltip.opacity === 0) {
+      hideTooltip();
+      return;
+    }
+
+    // Find which bar category was hovered (first non-line dataset)
+    const datasetIndex = tooltip.dataPoints ? tooltip.dataPoints[0]?.datasetIndex : 0;
+    const dataIndex    = tooltip.dataPoints ? tooltip.dataPoints[0]?.dataIndex    : 0;
+
+    // Only show for bar datasets (0–5)
+    if (datasetIndex > 5) { hideTooltip(); return; }
+
+    const meta = CATEGORY_META[datasetIndex];
+    const count = tooltip.dataPoints[0]?.raw || 0;
+    const names = NAMES[datasetIndex] || [];
+    const preview = names.slice(0, 3);
+
+    document.getElementById('tt-cat').textContent   = meta.label;
+    document.getElementById('tt-cat').style.color   = meta.color;
+
+    const countEl = document.getElementById('tt-count');
+    countEl.textContent      = count + ' students';
+    countEl.style.color      = meta.color;
+
+    const namesEl = document.getElementById('tt-names');
+    namesEl.innerHTML = preview.map(n => `<span class="tt-name-chip">${n}</span>`).join('') +
+      (names.length > 3 ? `<span class="tt-name-chip">+${names.length - 3} more</span>` : '');
+
+    const btn = document.getElementById('tt-btn');
+    btn.style.background = meta.color;
+    btn.style.color      = '#1e1e2e';
+
+    // Position tooltip near cursor
+    const { x, y } = tooltip.caretX != null
+      ? { x: chart.canvas.getBoundingClientRect().left + tooltip.caretX,
+          y: chart.canvas.getBoundingClientRect().top  + tooltip.caretY }
+      : { x: 0, y: 0 };
+
+    ttEl.style.left = Math.min(x + 12, window.innerWidth - 280) + 'px';
+    ttEl.style.top  = Math.max(y - 60, 10) + 'px';
+    ttEl.classList.add('show');
+  }
+
+  function hideTooltip() {
+    document.getElementById('custom-tooltip').classList.remove('show');
+  }
+
+  /* ============================================================
+     PERIOD SWITCH
+  ============================================================ */
+  function switchPeriod(period) {
+    currentPeriod = period;
+    document.getElementById('btn-weekly').classList.toggle('active',  period === 'weekly');
+    document.getElementById('btn-monthly').classList.toggle('active', period === 'monthly');
+    document.getElementById('period-label').textContent = 'Viewing: ' + (period === 'weekly' ? 'Weekly' : 'Monthly');
+
+    buildMainChart(period);
+    buildDonutChart(period);
+    buildTrendChart(period);
+  }
+
+  /* ============================================================
+     LEGEND TOGGLE
+  ============================================================ */
+  function toggleCategory(pillEl, catIndex) {
+    if (hiddenDatasets.has(catIndex)) {
+      hiddenDatasets.delete(catIndex);
+      pillEl.classList.add('active');
+    } else {
+      hiddenDatasets.add(catIndex);
+      pillEl.classList.remove('active');
+    }
+    if (mainChartInstance) {
+      mainChartInstance.data.datasets[catIndex].hidden = hiddenDatasets.has(catIndex);
+      mainChartInstance.update();
+    }
+  }
+
+  /* ============================================================
+     COUNT-UP ANIMATION for stat badges
+  ============================================================ */
+  function animateCountUp(el) {
+    const target = parseInt(el.dataset.target || 0, 10);
+    let current  = 0;
+    const step   = Math.ceil(target / 30);
+    const interval = setInterval(() => {
+      current = Math.min(current + step, target);
+      el.textContent = current;
+      if (current >= target) clearInterval(interval);
+    }, 30);
+  }
+
+  /* ============================================================
+     INTERSECTION OBSERVER — scroll-triggered animations
+  ============================================================ */
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+
+        // Trigger count-up for stat badges
+        if (entry.target.classList.contains('stat-badge')) {
+          const countEl = entry.target.querySelector('.stat-count');
+          if (countEl) animateCountUp(countEl);
+        }
+
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15 });
+
+  /* ============================================================
+     INIT
+  ============================================================ */
+  document.addEventListener('DOMContentLoaded', () => {
+    // Build charts
+    buildMainChart('weekly');
+    buildDonutChart('weekly');
+    buildTrendChart('weekly');
+
+    // Observe all animatable elements
+    document.querySelectorAll('.stat-badge, .glass-card, .anomaly-banner').forEach(el => {
+      observer.observe(el);
+    });
+
+    // Close tooltip on outside click
+    document.addEventListener('click', (e) => {
+      const tt = document.getElementById('custom-tooltip');
+      if (!tt.contains(e.target)) hideTooltip();
+    });
+  });
+  </script>
+
+</body>
+</html>
