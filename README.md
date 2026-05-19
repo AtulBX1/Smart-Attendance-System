@@ -1,216 +1,149 @@
 # Smart Attendance System
 
-![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![Flask](https://img.shields.io/badge/Flask-000000?style=for-the-badge&logo=flask&logoColor=white)
-![Scikit-Learn](https://img.shields.io/badge/scikit--learn-%23F7931E.svg?style=for-the-badge&logo=scikit-learn&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-07405E?style=for-the-badge&logo=sqlite&logoColor=white)
-![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
-![Chart.js](https://img.shields.io/badge/Chart.js-FF6384?style=for-the-badge&logo=chartdotjs&logoColor=white)
+An ML-powered Smart Attendance System that predicts at-risk students using attendance patterns and behavioral features.
 
-An AI-powered attendance analytics system that predicts students at risk of falling below attendance requirements using machine learning and behavioral trend analysis.
-
-This project transforms traditional attendance tracking into a **predictive monitoring system** that helps mentors and faculty identify students who may require intervention before attendance issues become critical.
+This project evolved from a basic ML model into a GPU-accelerated pipeline using XGBoost, hyperparameter tuning, and performance monitoring on NVIDIA CUDA hardware.
 
 ---
 
-## Key Features
+## Features
 
-### Predictive Risk Detection
-
-Uses machine learning models to estimate the probability of a student becoming attendance-deficient.
-
-### Attendance Trend Analysis
-
-Tracks rolling attendance patterns to detect declining participation.
-
-### Mentor Dashboard
-
-Displays students categorized into:
-
-* High Risk
-* Watchlist
-* Safe
-
-This allows mentors to focus attention on students who need help.
-
-### Automated Intervention Suggestions
-
-Provides recommended actions such as:
-
-* Parent contact
-* Counseling session
-* Advisory monitoring
-
-### Student Attendance Visualization
-
-Interactive charts show attendance trends for individual students.
-
-### Anomaly Detection
-
-Identifies unusual attendance behavior patterns using unsupervised learning.
+- Attendance trend analysis
+- Behavioral feature-based student risk prediction
+- GPU-accelerated XGBoost training (CUDA)
+- Hyperparameter tuning with:
+  - GridSearchCV
+  - RandomizedSearchCV
+- Weighted F1 evaluation for classification
+- GPU utilization monitoring via `nvidia-smi`
+- Experiment logging and benchmarking (CPU vs GPU)
 
 ---
 
-## Machine Learning Models Used
+## Tech Stack
 
-* Random Forest Classifier
-* XGBoost Classifier
-* DBSCAN for anomaly detection
+**Machine Learning**
+- Python
+- scikit-learn
+- XGBoost
 
-The system uses an ensemble approach to improve prediction reliability.
+**GPU / Acceleration**
+- NVIDIA CUDA 12.7
+- RTX 3050 Laptop GPU
+- XGBoost CUDA backend (`device='cuda'`)
 
----
-
-## Feature Engineering
-
-Key behavioral features used for prediction:
-
-* Rolling Attendance Average
-* Absence Streak
-* Semester Attendance Percentage
-* Attendance Trend (momentum)
-
-These features allow the system to detect **early warning signals** rather than reacting after attendance drops.
+**Data & Utilities**
+- Pandas
+- NumPy
 
 ---
 
-## System Architecture
+## Dataset
 
-Dataset → Preprocessing → Feature Engineering → ML Model → Risk Classification → Dashboard Visualization
+- ~419,000 rows
+- 21 features (attendance + behavioral data)
 
----
-
-## Technology Stack
-
-Backend
-
-* Python
-* Flask
-
-Machine Learning
-
-* Scikit-Learn
-* XGBoost
-* Pandas
-* NumPy
-
-Visualization
-
-* Chart.js
-
-Database
-
-* SQLite
+Target:
+- Student risk classification
 
 ---
 
-## Project Structure
+## Model Evolution
 
-```
-Smart-Attendance-System
+### 1. Random Forest Baseline
+- `RandomForestClassifier`
+- No tuning
+
+---
+
+### 2. CPU-Tuned XGBoost
+- `RandomizedSearchCV`
+- F1 Score: **0.8670**
+- Time: **26.2s**
+
+---
+
+### 3. GPU-Accelerated XGBoost (Final)
+
+Configuration:
+```python
+XGBClassifier(
+    device="cuda",
+    tree_method="hist"
+)
+
+Results:
+
+Metric	Value
+Weighted F1	0.8672
+CV F1	0.8639
+GPU Time	15.2s
+CPU Time	26.2s
+Speedup	1.7×
+
+GPU Stats:
+
+Peak Utilization: 99%
+VRAM Usage: ~2454 MiB
+Hyperparameter Tuning
+param_distributions = {
+    "max_depth": [3, 5, 10],
+    "n_estimators": [50, 100, 200],
+    "min_child_weight": [1, 3, 5]
+}
+n_iter = 10
+cv = 3
+scoring = 'f1_weighted'
+n_jobs = -1
+
+Best Params:
+
+{
+    'n_estimators': 200,
+    'min_child_weight': 1,
+    'max_depth': 5
+}
+GPU Integration Notes
+Uses XGBoost ≥ 2.0
+GPU enabled via:
+device = 'cuda'
+tree_method = 'hist'
+Includes:
+GPU verification
+fallback prevention
+runtime monitoring (nvidia-smi)
+Project Structure
+Smart-Attendance-System/
 │
-├── backend
-│   ├── app.py
-│   └── templates
-│
-├── models
-│   ├── train_model.py
-│   └── anomaly_detection.py
-│
-├── utils
-│   └── preprocess.py
-│
-├── data
-│   ├── raw
-│   └── processed
-│
-├── notebooks
-│
-└── requirements.txt
-```
+├── models/
+│   └── train_model.py
+├── data/
+├── notebooks/
+├── experiment_log.md
+├── requirements.txt
+└── README.md
+Installation
+git clone https://github.com/AtulBX1/Smart-Attendance-System.git
+cd Smart-Attendance-System
+pip install -r requirements.txt
+GPU Requirements
+NVIDIA GPU (CUDA supported)
+CUDA 12+
+XGBoost 2.x
 
----
+Check GPU:
 
-## Example Output
-
-The system categorizes students into risk groups:
-
-| Student | Semester Attendance | Trend | Status    |
-| ------- | ------------------- | ----- | --------- |
-| S0414   | 73%                 | -0.50 | High Risk |
-| S0695   | 89%                 | -0.20 | Watchlist |
-| S0258   | 74%                 | +0.10 | Safe      |
-
-Mentors receive actionable insights rather than simple attendance percentages.
-
----
-
-## Setup Instructions
-
-To run this project locally, follow these steps:
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/AtulBX1/Smart-Attendance-System.git
-   cd Smart-Attendance-System
-   ```
-
-2. **Create a virtual environment**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows use: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Generate Dummy Data & Train Models**
-   ```bash
-   python utils/generate_data.py
-   python utils/preprocess.py
-   python models/train_model.py
-   python utils/db_setup.py
-   ```
-
-5. **Run the Flask App**
-   ```bash
-   cd backend
-   python app.py
-   ```
-   Open `http://127.0.0.1:5000` in your browser. Default Admin Login is `admin` / `admin123`.
-
----
-
-## Screenshots
-
-*(Replace these paths with actual screenshots of your application)*
-
-- **Mentor Dashboard**
-  <img src="https://via.placeholder.com/800x400?text=Mentor+Dashboard+Screenshot" alt="Dashboard" width="800"/>
-
-- **Student Analytics**
-  <img src="https://via.placeholder.com/800x400?text=Student+Analytics+Screenshot" alt="Analytics" width="800"/>
-
----
-
-## Future Improvements
-
-* Real-time integration with university attendance systems
-* Automated notification system for mentors and parents
-* Advanced student behavioral analytics
-* Deployment on cloud infrastructure
-
----
-
-## Author
+nvidia-smi
+Future Improvements
+SHAP explainability
+Feature importance visualization
+Real-time dashboard
+Drift detection
+Deep learning models
+Author
 
 Atul Raj Singh
-B.Tech Computer Science
 
----
+License
 
-## License
-
-This project is intended for academic and research purposes.
+MIT License
